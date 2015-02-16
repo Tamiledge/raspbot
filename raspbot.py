@@ -24,7 +24,8 @@ OMRON_DATA_LIST=16		# Omron data array - sixteen 16 bit words
 MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
 TEMPMARGIN=3			# number of degrees F greater than room temp to detect a person
 DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
-DEBUG=1				# set this to 1 to see debug messages on monitor
+SERVO=0				# set this to 1 if the servo motor is wired up
+DEBUG=0				# set this to 1 to see debug messages on monitor
 
 hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
 after_hello_audio = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
@@ -69,11 +70,14 @@ if omron1_handle==0:
    sys.exit(0);
 
 # servo motor inits
-print '--- Moving servo'
+if DEBUG:
+   print '--- Moving servo'
+
 servo = 4				# GPIO number 
-turnAway =  [1000, 0.14]		# [0] = direction [1] = time
-facePerson= [2000, 0.1]		# [0] = direction [1] = time
-pi.set_servo_pulsewidth(servo, 0);	# set motor off
+if SERVO:
+   turnAway =  [1000, 0.14]		# [0] = direction [1] = time
+   facePerson= [2000, 0.1]		# [0] = direction [1] = time
+   pi.set_servo_pulsewidth(servo, 0);	# set motor off
 
 # initialze the music player
 #print '--- Saying Hello'
@@ -84,13 +88,16 @@ pygame.mixer.init()
 #    continue
 
 # Move head
-#print 'Moving Head'
-pw = turnAway[0] + (servo*50) 		# initialize head position
-pi.set_servo_pulsewidth(servo, pw)
-time.sleep(turnAway[1])
-pi.set_servo_pulsewidth(servo, 0);	        # set motor off
+if DEBUG:
+   print 'Moving Head'
+if SERVO:
+   pw = turnAway[0] + (servo*50) 		# initialize head position
+   pi.set_servo_pulsewidth(servo, pw)
+   time.sleep(turnAway[1])
+   pi.set_servo_pulsewidth(servo, 0);	        # set motor off
 
 print 'Looking for a person'
+
 Person = 0				# initialize the person tracker
 person_existed_last_time = 0
 first_time = 1
@@ -214,10 +221,11 @@ while True:			        # The main loop
             print "Hello Person!"
 
 # Move head
-         pw = facePerson[0] + (servo*50) 		# change head position
-         pi.set_servo_pulsewidth(servo, pw)
-         time.sleep(facePerson[1])			# distance = time
-         pi.set_servo_pulsewidth(servo, 0);	        # set motor off
+         if SERVO:
+            pw = facePerson[0] + (servo*50) 		# change head position
+            pi.set_servo_pulsewidth(servo, pw)
+            time.sleep(facePerson[1])			# distance = time
+            pi.set_servo_pulsewidth(servo, 0);	        # set motor off
 
 # Play "hello" sound effect
          hello_message = random.choice(hello_audio)         
@@ -246,10 +254,12 @@ while True:			        # The main loop
          played_byebye =1
 
 # Move head back
-         pw = turnAway[0] + (servo*50) 		# change head position
-         pi.set_servo_pulsewidth(servo, pw)
-         time.sleep(turnAway[1])
-         pi.set_servo_pulsewidth(servo, 0);	        # set motor off
+         if SERVO:
+            pw = turnAway[0] + (servo*50) 		# change head position
+            pi.set_servo_pulsewidth(servo, pw)
+            time.sleep(turnAway[1])
+            pi.set_servo_pulsewidth(servo, 0);	        # set motor off
+
          person_existed_last_time = 0
       else:
          time.sleep(0.05)				# no one is in front of the device
