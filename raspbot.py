@@ -14,6 +14,7 @@ import pigpio
 import time
 import pygame
 import random
+#from RPIO import PWM		# for the servo motor
 from omron_src import *		# contains omron functions
 
 # Constants
@@ -21,11 +22,13 @@ RASPI_I2C_CHANNEL=1		# the /dev/i2c device
 OMRON_1=0x0a 			# 7 bit I2C address of Omron MEMS Temp Sensor D6T-44L
 OMRON_BUFFER_LENGTH=35		# Omron data buffer size
 OMRON_DATA_LIST=16		# Omron data array - sixteen 16 bit words
+HORIZ_LIST_SIZE=7		# The 4x4 array converted to 1x7 for temp tracking
 MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
 TEMPMARGIN=3			# number of degrees F greater than room temp to detect a person
 DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
+MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
 SERVO=0				# set this to 1 if the servo motor is wired up
-DEBUG=0				# set this to 1 to see debug messages on monitor
+DEBUG=1				# set this to 1 to see debug messages on monitor
 
 hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
 after_hello_audio = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
@@ -36,10 +39,87 @@ after_byebye_audio = "snd/20150201_chloe-cry1.mp3", "snd/20150201_chloe-loveu.mp
 def avg(l):
     return sum(l, 0.0) / len(l)
 
+def play_sound(volume, message):
+   pygame.mixer.music.set_volume(volume)         
+   pygame.mixer.music.load(message)
+   pygame.mixer.music.play()
+   while pygame.mixer.music.get_busy() == True:
+      continue
+
+#def set_servo(pi, servo_GPIO_pin, direction, delay_time):  
+#   pw = direction + (servo_GPIO_pin*50)
+#   if (pw != 0 and (pw < 500 or pw >2500)):
+#      print 'Servo pulse width must be either 0 or between 500 and 2500: pw='+str(pw)
+#      pw = 0
+#   pi.set_servo_pulsewidth(servo_GPIO_pin, pw)
+#   time.sleep(delay_time)
+#   pi.set_servo_pulsewidth(servo_GPIO_pin, 0);	# set motor off
+
+def print_temps(temp_list):
+# Display each element's temperature in F
+   print "%.1f"%temp_list[0]+' ',
+   print "%.1f"%temp_list[1]+' ',
+   print "%.1f"%temp_list[2]+' ',
+   print "%.1f"%temp_list[3]+' ',
+   print ''
+   print "%.1f"%temp_list[4]+' ',
+   print "%.1f"%temp_list[5]+' ',
+   print "%.1f"%temp_list[6]+' ',
+   print "%.1f"%temp_list[7]+' ',
+   print ''
+   print "%.1f"%temp_list[8]+' ',
+   print "%.1f"%temp_list[9]+' ',
+   print "%.1f"%temp_list[10]+' ',
+   print "%.1f"%temp_list[11]+' ',
+   print ''
+   print "%.1f"%temp_list[12]+' ',
+   print "%.1f"%temp_list[13]+' ',
+   print "%.1f"%temp_list[14]+' ',
+   print "%.1f"%temp_list[15]+' ',
+   print ''
+
+# Make a 1x7 horizontal array of temps based on a 4x4 array
+# for use in head tracking of high temps
+def make_horizontal(temp_list):
+   if DEBUG:
+      print 'Making 1x8 array'
+
+   tlist=[0.0]*HORIZ_LIST_SIZE
+
+   tlist[0] = max(temp_list[0], temp_list[4], temp_list[8], temp_list[12])
+   tlist[2] = max(temp_list[1], temp_list[5], temp_list[9], temp_list[13])
+   tlist[4] = max(temp_list[2], temp_list[6], temp_list[10], temp_list[14])
+   tlist[6] = max(temp_list[3], temp_list[7], temp_list[11], temp_list[15])
+
+   short_list=[tlist[0],tlist[2]]
+   tlist[1] = avg(short_list)
+   short_list=[tlist[2],tlist[4]]
+   tlist[3] = avg(short_list)
+   short_list=[tlist[4],tlist[6]]
+   tlist[5] = avg(short_list)
+
+   if DEBUG:
+      print 'Horizontal Temperature string'
+      print "%.1f"%tlist[0]+' ',
+      print "%.1f"%tlist[1]+' ',
+      print "%.1f"%tlist[2]+' ',
+      print "%.1f"%tlist[3]+' ',
+      print "%.1f"%tlist[4]+' ',
+      print "%.1f"%tlist[5]+' ',
+      print "%.1f"%tlist[6]+' '
+
+   return tlist
+
+###############################
+#
+# Start of main line program
+#
+###############################
 # Initialize variables
 temperature_array=[0.0]*OMRON_DATA_LIST		# holds the recently measured temperature
 temperature_previous=[0.0]*OMRON_DATA_LIST	# keeps track of the previous values
 temperature_moving_ave=[0.0]*OMRON_DATA_LIST	# moving average of temperature
+horiz_list=[0.0]*HORIZ_LIST_SIZE
 fatal_error = 0
 retries=0
 played_hello=0
@@ -51,6 +131,13 @@ time.sleep(0.05)				# Wait a short time
 
 # make some space
 print ''
+if DEBUG:
+   print 'DEBUG switch is on'
+if SERVO:
+   print 'SERVO switch is on'
+else:
+   print 'SERVO is off'
+
 
 # intialize the pigpio library and socket connection to the daemon (pigpiod)
 pi = pigpio.pi()              # use defaults
@@ -70,31 +157,24 @@ if omron1_handle==0:
    sys.exit(0);
 
 # servo motor inits
-if DEBUG:
-   print '--- Moving servo'
+servo_GPIO_pin = 4			# GPIO number 
+turnAway =  [1000, 0.14]		# [0] = pulse width (direction) [1] = time
+facePerson= [2000, 0.1]		        # [0] = pulse width (direction) [1] = time
 
-servo = 4				# GPIO number 
 if SERVO:
-   turnAway =  [1000, 0.14]		# [0] = direction [1] = time
-   facePerson= [2000, 0.1]		# [0] = direction [1] = time
-   pi.set_servo_pulsewidth(servo, 0);	# set motor off
+   if DEBUG:
+      print 'Servo: initializing servo'
+   servo = PWM.Servo()
+#   set_servo(pi, servo, 0, 0)
 
 # initialze the music player
-#print '--- Saying Hello'
 pygame.mixer.init()
-#pygame.mixer.music.load("snd/Zoe-giggle-01.mp3")
-#pygame.mixer.music.play()
-#while pygame.mixer.music.get_busy() == True:
-#    continue
 
-# Move head
-if DEBUG:
-   print 'Moving Head'
+# Initialize servo position
 if SERVO:
-   pw = turnAway[0] + (servo*50) 		# initialize head position
-   pi.set_servo_pulsewidth(servo, pw)
-   time.sleep(turnAway[1])
-   pi.set_servo_pulsewidth(servo, 0);	        # set motor off
+   if DEBUG:
+      print 'Servo: Turning away from person'
+#   set_servo(pi, servo, turnAway[0], turnAway[1])
 
 print 'Looking for a person'
 
@@ -102,190 +182,121 @@ Person = 0				# initialize the person tracker
 person_existed_last_time = 0
 first_time = 1
 
-while True:			        # The main loop
-   while True: 				# do this loop until a person shows up
+try:
+   while True:			        # The main loop
+      while True: 				# do this loop until a person shows up
+         time.sleep(MEASUREMENT_WAIT_PERIOD)
+
 # read the raw temperature data
 # 
 # save away the previous temp measurement so that a moving average can be kept
-      for i in range(0,OMRON_DATA_LIST):
-         temperature_previous[i] = temperature_array[i]
+         for i in range(0,OMRON_DATA_LIST):
+            temperature_previous[i] = temperature_array[i]
  
+         if DEBUG:
+            print 'Previous temperature measurement'
+            print_temps(temperature_previous)
+            print ''
+
 # Format: (bytes_read, temperature_array, room_temp) = omron_read(sensor_handle, C/F, length of temperature array, pigpio socket handle)
 # returns bytes_read - if not equal to length of temperature array, then sensor error
  
-      (bytes_read, temperature_array, room_temp) = omron_read(omron1_handle, DEGREE_UNIT, OMRON_BUFFER_LENGTH, pi)
+         (bytes_read, temperature_array, room_temp) = omron_read(omron1_handle, DEGREE_UNIT, OMRON_BUFFER_LENGTH, pi)
 
-      if bytes_read != OMRON_BUFFER_LENGTH: # sensor problem
-         print ''
-         print 'ERROR: Omron thermal sensor failure! Bytes read: '+str(bytes_read)
-         print ''
-         fatal_error = 1
-         break
+# Display each element's temperature in F
+         if DEBUG:
+            print 'New temperature measurement'
+            print_temps(temperature_array)
+
+         if bytes_read != OMRON_BUFFER_LENGTH: # sensor problem
+            print ''
+            print 'ERROR: Omron thermal sensor failure! Bytes read: '+str(bytes_read)
+            print ''
+            fatal_error = 1
+            break
 
 # Use the room temp value for the threshold to determine if a person is in front of the sensor
-      for i in range(0,OMRON_DATA_LIST):
-         list = [temperature_array[i], temperature_previous[i]]
-         temperature_moving_ave[i] = avg(list)
+         for i in range(0,OMRON_DATA_LIST):
+            list = [temperature_array[i], temperature_previous[i], temperature_moving_ave[i]]
+            temperature_moving_ave[i] = avg(list)
 
 # Display each element's temperature in F
-      if DEBUG:
-         print 'Previous temperature measurement'
-         print "%.1f"%temperature_previous[0]+' ',
-         print "%.1f"%temperature_previous[1]+' ',
-         print "%.1f"%temperature_previous[2]+' ',
-         print "%.1f"%temperature_previous[3]+' ',
-         print ''
-         print "%.1f"%temperature_previous[4]+' ',
-         print "%.1f"%temperature_previous[5]+' ',
-         print "%.1f"%temperature_previous[6]+' ',
-         print "%.1f"%temperature_previous[7]+' ',
-         print ''
-         print "%.1f"%temperature_previous[8]+' ',
-         print "%.1f"%temperature_previous[9]+' ',
-         print "%.1f"%temperature_previous[10]+' ',
-         print "%.1f"%temperature_previous[11]+' ',
-         print ''
-         print "%.1f"%temperature_previous[12]+' ',
-         print "%.1f"%temperature_previous[13]+' ',
-         print "%.1f"%temperature_previous[14]+' ',
-         print "%.1f"%temperature_previous[15]+' ',
-         print ''
+         if DEBUG:
+            print 'Temperature moving average'
+            print_temps(temperature_moving_ave)
 
-# Display each element's temperature in F
-      if DEBUG:
-         print 'New temperature measurment'
-         print "%.1f"%temperature_array[0]+' ',
-         print "%.1f"%temperature_array[1]+' ',
-         print "%.1f"%temperature_array[2]+' ',
-         print "%.1f"%temperature_array[3]+' ',
-         print ''
-         print "%.1f"%temperature_array[4]+' ',
-         print "%.1f"%temperature_array[5]+' ',
-         print "%.1f"%temperature_array[6]+' ',
-         print "%.1f"%temperature_array[7]+' ',
-         print ''
-         print "%.1f"%temperature_array[8]+' ',
-         print "%.1f"%temperature_array[9]+' ',
-         print "%.1f"%temperature_array[10]+' ',
-         print "%.1f"%temperature_array[11]+' ',
-         print ''
-         print "%.1f"%temperature_array[12]+' ',
-         print "%.1f"%temperature_array[13]+' ',
-         print "%.1f"%temperature_array[14]+' ',
-         print "%.1f"%temperature_array[15]+' ',
-         print ''
-
-# Display each element's temperature in F
-      if DEBUG:
-         print 'Moving average'
-         print "%.1f"%temperature_moving_ave[0]+' ',
-         print "%.1f"%temperature_moving_ave[1]+' ',
-         print "%.1f"%temperature_moving_ave[2]+' ',
-         print "%.1f"%temperature_moving_ave[3]+' ',
-         print ''
-         print "%.1f"%temperature_moving_ave[4]+' ',
-         print "%.1f"%temperature_moving_ave[5]+' ',
-         print "%.1f"%temperature_moving_ave[6]+' ',
-         print "%.1f"%temperature_moving_ave[7]+' ',
-         print ''
-         print "%.1f"%temperature_moving_ave[8]+' ',
-         print "%.1f"%temperature_moving_ave[9]+' ',
-         print "%.1f"%temperature_moving_ave[10]+' ',
-         print "%.1f"%temperature_moving_ave[11]+' ',
-         print ''
-         print "%.1f"%temperature_moving_ave[12]+' ',
-         print "%.1f"%temperature_moving_ave[13]+' ',
-         print "%.1f"%temperature_moving_ave[14]+' ',
-         print "%.1f"%temperature_moving_ave[15]+' ',
-         print ''
+         horiz_temp = make_horizontal(temperature_moving_ave)
 
 # Display the Omron internal temperature (room temp - something to compare signals with)
-      if DEBUG:
-         print 'Omron D6T internal temp = '+"%.1f"%room_temp+' F'
+         if DEBUG:
+            print 'Omron D6T internal temp = '+"%.1f"%room_temp+' F'
 
-      if max(temperature_array) > room_temp+TEMPMARGIN:    # Here is where a person is detected
-         Person = 1
-         break
-      else:
-         Person = 0
-         break
+         if max(temperature_array) > room_temp+TEMPMARGIN:    # Here is where a person is detected
+            Person = 1
+            break
+         else:
+            Person = 0
+            break
       
 # end of while loop
 
-   if fatal_error:
-      break
+      if fatal_error:
+         break
 
-   if Person == 1:
-      if person_existed_last_time == 0:			# person detected for the first time
-         if DEBUG:
-            print "Hello Person!"
+      if Person == 1:
+         if person_existed_last_time == 0:			# person detected for the first time
+            if DEBUG:
+               print "Hello Person!"
 
 # Move head
-         if SERVO:
-            pw = facePerson[0] + (servo*50) 		# change head position
-            pi.set_servo_pulsewidth(servo, pw)
-            time.sleep(facePerson[1])			# distance = time
-            pi.set_servo_pulsewidth(servo, 0);	        # set motor off
+            if SERVO:
+               if DEBUG:
+                  print 'Servo: Facing Person'
+#               set_servo(pi, servo, facePerson[0], facePerson[1])
 
 # Play "hello" sound effect
-         hello_message = random.choice(hello_audio)         
-         pygame.mixer.music.set_volume(MAX_VOLUME)         
-         pygame.mixer.music.load(hello_message)
-         pygame.mixer.music.play()
-         while pygame.mixer.music.get_busy() == True:
-            continue
-         person_existed_last_time = 1
-         played_hello =1
-      else:
-         time.sleep(0.05)				# person remains in front of the device
+            hello_message = random.choice(hello_audio)         
+            play_sound(MAX_VOLUME, hello_message)
+            person_existed_last_time = 1
+            played_hello =1
+         else:
+            time.sleep(0.05)				# person remains in front of the device
 
-   else:
-      if person_existed_last_time == 1:			# person moved away from the device
-         if DEBUG:
-            print "Bye bye Person!"
+      else:
+         if person_existed_last_time == 1:			# person moved away from the device
+            if DEBUG:
+               print "Bye bye Person!"
 
 # Play "bye bye" sound effect
-         byebye_message = random.choice(byebye_audio)
-         pygame.mixer.music.set_volume(MAX_VOLUME)         
-         pygame.mixer.music.load(byebye_message)
-         pygame.mixer.music.play()
-         while pygame.mixer.music.get_busy() == True:
-            continue
-         played_byebye =1
+            byebye_message = random.choice(byebye_audio)
+            play_sound(MAX_VOLUME, byebye_message)
+            played_byebye =1
 
 # Move head back
-         if SERVO:
-            pw = turnAway[0] + (servo*50) 		# change head position
-            pi.set_servo_pulsewidth(servo, pw)
-            time.sleep(turnAway[1])
-            pi.set_servo_pulsewidth(servo, 0);	        # set motor off
+            if SERVO:
+               if DEBUG:
+                  print 'Servo: Turning away from Person'
+#               set_servo(pi, servo, turnAway[0], turnAway[1])
 
-         person_existed_last_time = 0
-      else:
-         time.sleep(0.05)				# no one is in front of the device
+            person_existed_last_time = 0
+         else:
+            time.sleep(0.05)				# no one is in front of the device
 
-   if played_hello:
-      pygame.mixer.music.set_volume(MAX_VOLUME)
-      after_hello_message = random.choice(after_hello_audio)         
-      pygame.mixer.music.load(after_hello_message)
-      pygame.mixer.music.play()
-      while pygame.mixer.music.get_busy() == True:
-         continue
-      played_hello=0
+      if played_hello:
+         after_hello_message = random.choice(after_hello_audio)         
+         play_sound(MAX_VOLUME, after_hello_message)
+         played_hello=0
 
-   if played_byebye:
-      pygame.mixer.music.set_volume(MAX_VOLUME)         
-      after_byebye_message = random.choice(after_byebye_audio)
-      pygame.mixer.music.load(after_byebye_message)
-      pygame.mixer.music.play()
-      while pygame.mixer.music.get_busy() == True:
-         continue
-      played_byebye=0
+      if played_byebye:
+         after_byebye_message = random.choice(after_byebye_audio)
+         play_sound(MAX_VOLUME, after_byebye_message)
+         played_byebye=0
 
    # end if
 
 # end of main loop
-
-pi.i2c_close(omron1_handle)
+except KeyboardInterrupt:
+   print 'Keyboard interrupt; cleaning up'
+   pi.i2c_close(omron1_handle)
 
 
