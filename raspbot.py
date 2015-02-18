@@ -125,64 +125,66 @@ retries=0
 played_hello=0
 played_byebye=0
 
+try:
 # Initialize i2c bus address
-i2c_bus = smbus.SMBus(1)
-time.sleep(0.05)				# Wait a short time
+   i2c_bus = smbus.SMBus(1)
+   time.sleep(0.05)				# Wait a short time
 
 # make some space
-print ''
-if DEBUG:
-   print 'DEBUG switch is on'
-if SERVO:
-   print 'SERVO switch is on'
-else:
-   print 'SERVO is off'
+   print ''
+   if DEBUG:
+      print 'DEBUG switch is on'
+   if SERVO:
+      print 'SERVO switch is on'
+   else:
+      print 'SERVO is off'
 
 
 # intialize the pigpio library and socket connection to the daemon (pigpiod)
-pi = pigpio.pi()              # use defaults
-if DEBUG:
-   version = pi.get_pigpio_version()
-   print 'PiGPIO version = '+str(version)
+   pi = pigpio.pi()              # use defaults
+   if DEBUG:
+      version = pi.get_pigpio_version()
+      print 'PiGPIO version = '+str(version)
 
 # Initialize the selected Omron sensor
-if DEBUG:
-   print 'Initializing Person Sensor'
+   if DEBUG:
+      print 'Initializing Person Sensor'
 
-(omron1_handle, omron1_result) = omron_init(RASPI_I2C_CHANNEL, OMRON_1, pi, i2c_bus) # passing in the i2c address of the sensor
+   (omron1_handle, omron1_result) = omron_init(RASPI_I2C_CHANNEL, OMRON_1, pi, i2c_bus) # passing in the i2c address of the sensor
 
-if omron1_handle==0:
-   print 'I2C sensor not found!'
-   fatal_error = 1
-   sys.exit(0);
+   if omron1_handle==0:
+      print 'I2C sensor not found!'
+      sys.exit(0);
 
 # servo motor inits
-servo_GPIO_pin = 4			# GPIO number 
-turnAway =  [1000, 0.14]		# [0] = pulse width (direction) [1] = time
-facePerson= [2000, 0.1]		        # [0] = pulse width (direction) [1] = time
+   servo_GPIO_pin = 17			# GPIO number 
+#   turnAway =  [1000, 0.14]		# [0] = pulse width (direction) [1] = time
+#   facePerson= [2000, 0.1]		        # [0] = pulse width (direction) [1] = time
 
-if SERVO:
-   if DEBUG:
-      print 'Servo: initializing servo'
-   servo = PWM.Servo()
+   if SERVO:
+      if DEBUG:
+         print 'Servo: initializing servo'
+      servo = PWM.Servo()
 #   set_servo(pi, servo, 0, 0)
 
 # initialze the music player
-pygame.mixer.init()
+   pygame.mixer.init()
 
 # Initialize servo position
-if SERVO:
-   if DEBUG:
-      print 'Servo: Turning away from person'
+   if SERVO:
+      if DEBUG:
+         print 'Servo: Turning away from person'
 #   set_servo(pi, servo, turnAway[0], turnAway[1])
 
-print 'Looking for a person'
+   print 'Looking for a person'
 
-Person = 0				# initialize the person tracker
-person_existed_last_time = 0
-first_time = 1
+   Person = 0				# initialize the person tracker
+   person_existed_last_time = 0
+   first_time = 1
 
-try:
+#############################
+# Main while loop
+#############################
    while True:			        # The main loop
       while True: 				# do this loop until a person shows up
          time.sleep(MEASUREMENT_WAIT_PERIOD)
@@ -296,7 +298,13 @@ try:
 
 # end of main loop
 except KeyboardInterrupt:
+   print ''
    print 'Keyboard interrupt; cleaning up'
+   pi.i2c_close(omron1_handle)
+
+except IOError:
+   print ''
+   print 'I/O Error; cleaning up'
    pi.i2c_close(omron1_handle)
 
 
