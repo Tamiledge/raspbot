@@ -152,7 +152,7 @@ try:
 
    (omron1_handle, omron1_result) = omron_init(RASPI_I2C_CHANNEL, OMRON_1, pi, i2c_bus) # passing in the i2c address of the sensor
 
-   if omron1_handle==0:
+   if omron1_handle < 1:
       print 'I2C sensor not found!'
       sys.exit(0);
 
