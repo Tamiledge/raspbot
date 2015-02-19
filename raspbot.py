@@ -4,6 +4,10 @@
 # By Greg Griffes http://yottametric.com
 # GNU GPL V3 
 
+# !!!!!!!!!!!!!!!!!
+# remember to run this as root "sudo ./raspbot" so that DMA can be used for the servo
+# !!!!!!!!!!!!!!!!!
+
 # Jan 2015
 
 import smbus
@@ -14,7 +18,6 @@ import pigpio
 import time
 import pygame
 import random
-#from RPIO import PWM		# for the servo motor
 from omron_src import *		# contains omron functions
 
 # Constants
@@ -27,8 +30,14 @@ MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
 TEMPMARGIN=3			# number of degrees F greater than room temp to detect a person
 DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
 MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
-SERVO=0				# set this to 1 if the servo motor is wired up
+SERVO=1				# set this to 1 if the servo motor is wired up
+SERVO_GPIO_PIN = 11		# GPIO number 
 DEBUG=1				# set this to 1 to see debug messages on monitor
+
+import RPi.GPIO as GPIO
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
+from RPIO import PWM		# for the servo motor
 
 hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
 after_hello_audio = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
@@ -157,15 +166,18 @@ try:
       sys.exit(0);
 
 # servo motor inits
-   servo_GPIO_pin = 17			# GPIO number 
 #   turnAway =  [1000, 0.14]		# [0] = pulse width (direction) [1] = time
 #   facePerson= [2000, 0.1]		        # [0] = pulse width (direction) [1] = time
 
    if SERVO:
       if DEBUG:
          print 'Servo: initializing servo'
+      GPIO.setmode(GPIO.BOARD)
+      GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
       servo = PWM.Servo()
-#   set_servo(pi, servo, 0, 0)
+      servo.set_servo(SERVO_GPIO_PIN, 1500)
+      time.sleep(0.3)
+      servo.stop_servo(SERVO_GPIO_PIN)
 
 # initialze the music player
    pygame.mixer.init()
