@@ -17,6 +17,7 @@ import time
 import pigpio
 import time
 import pygame
+from pygame.locals import *
 import random
 from omron_src import *		# contains omron functions
 
@@ -32,15 +33,17 @@ DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
 MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
 SERVO=1				# set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11		# GPIO number 
-DEBUG=1				# set this to 1 to see debug messages on monitor
+DEBUG=0				# set this to 1 to see debug messages on monitor
 
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
 from RPIO import PWM		# for the servo motor
 
-hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
-after_hello_audio = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
+#hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
+hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3"
+after_hello_audio = "snd/20150201_zoe-boeing.mp3", "snd/20150201_chloe-boeing.mp3",  "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-yippee1.mp3"
+#after_hello_audio = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
 byebye_audio = "snd/20150201_zoe-goodbye1.mp3", "snd/20150201_chloe-goodbye1.mp3"
 after_byebye_audio = "snd/20150201_chloe-cry1.mp3", "snd/20150201_chloe-loveu.mp3", "snd/20150201_zoe-loveu.mp3"
 
@@ -119,6 +122,9 @@ def make_horizontal(temp_list):
 
    return tlist
 
+if "-debug" in sys.argv:
+   DEBUG=1				# set this to 1 to see debug messages on monitor
+
 ###############################
 #
 # Start of main line program
@@ -178,6 +184,40 @@ try:
       servo.set_servo(SERVO_GPIO_PIN, 1500)
       time.sleep(0.3)
       servo.stop_servo(SERVO_GPIO_PIN)
+
+# Initialize screen
+   pygame.init()
+
+# setup the IR color window
+   pygame.display.set_caption('IR temp array')
+   screen_dims = [300, 200]
+   screen = pygame.display.set_mode(screen_dims,pygame.NOFRAME)
+
+#   point - point with two coordinates (x,y)
+#   rect - two points forming a rectangle (x1,y1) (x2,y2)
+   p0p1 = (0, 0)
+   p0p2 = (100, 100)
+   p0 = (p0p1, p0p2)	# one rectangle called p0 from the Omron spec
+
+# Fill background
+   background = pygame.Surface(screen.get_size())
+   background = background.convert()
+   background.fill((255, 255, 255))
+
+# Display some text
+#   font = pygame.font.Font(None, 36)
+#   text = font.render("Hello There", 1, (10, 10, 10))
+#   textpos = text.get_rect()
+#   textpos.centerx = background.get_rect().centerx
+#   background.blit(text, textpos)
+
+# Blit everything to the screen
+   screen.blit(background, (0, 0))
+   pygame.display.flip()
+
+# create a rectangle with a specific color
+   color1 = (150, 150, 150)
+   screen.fill(color1, p0)
 
 # initialze the music player
    pygame.mixer.init()
@@ -301,10 +341,10 @@ try:
          play_sound(MAX_VOLUME, after_hello_message)
          played_hello=0
 
-      if played_byebye:
-         after_byebye_message = random.choice(after_byebye_audio)
-         play_sound(MAX_VOLUME, after_byebye_message)
-         played_byebye=0
+#      if played_byebye:
+#         after_byebye_message = random.choice(after_byebye_audio)
+#         play_sound(MAX_VOLUME, after_byebye_message)
+#         played_byebye=0
 
    # end if
 
@@ -316,7 +356,6 @@ except KeyboardInterrupt:
 
 except IOError:
    print ''
-   print 'I/O Error; cleaning up'
-   pi.i2c_close(omron1_handle)
+   print 'I/O Error; quitting'
 
 
