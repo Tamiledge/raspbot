@@ -34,9 +34,9 @@ MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
 SERVO=1				# set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11		# GPIO number 
 DEBUG=0				# set this to 1 to see debug messages on monitor
-SCREEN_DIMENSIONS = [800, 800]	# setup the IR color window
+SCREEN_DIMENSIONS = [400, 400]	# setup the IR color window
 MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
-MAX_TEMP = 212			# minimum expected temperature in Fahrenheit
+MAX_TEMP = 200			# minimum expected temperature in Fahrenheit
 
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BOARD)
@@ -96,8 +96,8 @@ def print_temps(temp_list):
 # Make a 1x7 horizontal array of temps based on a 4x4 array
 # for use in head tracking of high temps
 def make_horizontal(temp_list):
-   if DEBUG:
-      print 'Making 1x8 array'
+#   if DEBUG:
+#      print 'Making 1x8 array'
 
    tlist=[0.0]*HORIZ_LIST_SIZE
 
@@ -113,15 +113,15 @@ def make_horizontal(temp_list):
    short_list=[tlist[4],tlist[6]]
    tlist[5] = avg(short_list)
 
-   if DEBUG:
-      print 'Horizontal Temperature string'
-      print "%.1f"%tlist[0]+' ',
-      print "%.1f"%tlist[1]+' ',
-      print "%.1f"%tlist[2]+' ',
-      print "%.1f"%tlist[3]+' ',
-      print "%.1f"%tlist[4]+' ',
-      print "%.1f"%tlist[5]+' ',
-      print "%.1f"%tlist[6]+' '
+#   if DEBUG:
+#      print 'Horizontal Temperature string'
+#      print "%.1f"%tlist[0]+' ',
+#      print "%.1f"%tlist[1]+' ',
+#      print "%.1f"%tlist[2]+' ',
+#      print "%.1f"%tlist[3]+' ',
+#      print "%.1f"%tlist[4]+' ',
+#      print "%.1f"%tlist[5]+' ',
+#      print "%.1f"%tlist[6]+' '
 
    return tlist
 
@@ -139,8 +139,22 @@ def fahrenheit_to_rgb(maxVal, minVal, actual):
       else:
          intG = 255
          intR = round(255 * ((actual - minVal) / (midVal - minVal)))
-      if DEBUG:
-         print 'Temp to RGB = ('+str(intR)+', '+str(intG)+', '+str(intB)+')'
+
+      if intR < 0:
+         intR = 0
+      if intR > 255:
+         intR = 255
+      if intG < 0:
+         intG = 0
+      if intG > 255:
+         intG = 255
+      if intB < 0:
+         intB = 0
+      if intB > 255:
+         intB = 255
+
+#      if DEBUG:
+#         print 'Temp to RGB = ('+str(intR)+', '+str(intG)+', '+str(intB)+')'
 
    return ((intR, intG, intB))
 
@@ -174,6 +188,29 @@ fatal_error = 0
 retries=0
 played_hello=0
 played_byebye=0
+quadrant=[(0,0,0,0)]*OMRON_DATA_LIST		# quadrant of the display (x, y, width, height)
+px=[0]*4
+py=[0]*4
+
+# Initialize screen
+pygame.init()
+font = pygame.font.Font(None, 36)
+
+# setup the IR color window
+screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.NOFRAME)
+pygame.display.set_caption('IR temp array')
+
+# initialize the window quadrant areas for displaying temperature
+pixel_width = SCREEN_DIMENSIONS[0]/4
+px = (pixel_width*3, pixel_width*2, pixel_width, 0)
+pixel_height = SCREEN_DIMENSIONS[1]/4
+py = (0, pixel_width, pixel_width*2, pixel_width*3)
+for x in range(0,4):
+   for y in range(0,4):
+      quadrant[(x*4)+y] = (px[x], py[y], pixel_width, pixel_height)
+if DEBUG:
+   for i in range(0,OMRON_DATA_LIST):
+      print 'Q['+str(i)+'] = '+str(quadrant[i])
 
 try:
 # Initialize i2c bus address
@@ -220,40 +257,6 @@ try:
       time.sleep(0.3)
       servo.stop_servo(SERVO_GPIO_PIN)
 
-# Initialize screen
-   pygame.init()
-   font = pygame.font.Font(None, 36)
-
-# setup the IR color window
-   screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.NOFRAME)
-   pygame.display.set_caption('IR temp array')
-
-#   point - point with two coordinates (x,y)
-#   rect - two points forming a rectangle (x1,y1) (x2,y2)
-   p0p1 = (0, 0)
-   p0p2 = (100, 100)
-   p0 = (p0p1, p0p2)	# one rectangle called p0 from the Omron spec
-
-# Fill background
-   background = pygame.Surface(screen.get_size())
-   background = background.convert()
-   background.fill((0, 0, 0))
-
-# Display some text
-#   font = pygame.font.Font(None, 36)
-#   text = font.render("Hello There", 1, (10, 10, 10))
-#   textpos = text.get_rect()
-#   textpos.centerx = background.get_rect().centerx
-#   background.blit(text, textpos)
-
-# Blit everything to the screen
-   screen.blit(background, (0, 0))
-   pygame.display.flip()
-
-# create a rectangle with a specific color
-#   color1 = (150, 150, 150)
-#   screen.fill(color1, p0)
-
 # initialze the music player
    pygame.mixer.init()
 
@@ -282,10 +285,10 @@ try:
          for i in range(0,OMRON_DATA_LIST):
             temperature_previous[i] = temperature_array[i]
  
-         if DEBUG:
-            print 'Previous temperature measurement'
-            print_temps(temperature_previous)
-            print ''
+#         if DEBUG:
+#            print 'Previous temperature measurement'
+#            print_temps(temperature_previous)
+#            print ''
 
 # Format: (bytes_read, temperature_array, room_temp) = omron_read(sensor_handle, C/F, length of temperature array, pigpio socket handle)
 # returns bytes_read - if not equal to length of temperature array, then sensor error
@@ -310,9 +313,9 @@ try:
             temperature_moving_ave[i] = avg(list)
 
 # Display each element's temperature in F
-         if DEBUG:
-            print 'Temperature moving average'
-            print_temps(temperature_moving_ave)
+#         if DEBUG:
+#            print 'Temperature moving average'
+#            print_temps(temperature_moving_ave)
 
          horiz_temp = make_horizontal(temperature_moving_ave)
 
@@ -320,22 +323,17 @@ try:
          if DEBUG:
             print 'Omron D6T internal temp = '+"%.1f"%room_temp+' F'
 
-# set the background color based on temperature
-         max_temp = max(temperature_array)
-         if DEBUG:
-            print 'max measured temp = '+"%.1f"%max_temp+' F'
-         
-         background.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, max_temp))
+# create the IR pixels
+         for i in range(0,OMRON_DATA_LIST):
+            pygame.draw.rect(screen, fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
+# Display temp value
+            text = font.render("%.1f"%temperature_array[i], 1, (14, 14, 14))
+            textpos = text.get_rect()
+            textpos.centerx = screen.get_rect(center).centerx
+            screen.blit(text, textpos)
 
-# Display some text
-         text = font.render("%.1f"%max_temp+' F', 1, (14, 14, 14))
-         textpos = text.get_rect()
-         textpos.centerx = background.get_rect().centerx
-         background.blit(text, textpos)
-
-# Blit everything to the screen
-         screen.blit(background, (0, 0))
-         pygame.display.flip()
+# update the screen
+         pygame.display.update()
 
          if max(temperature_array) > room_temp+TEMPMARGIN:    # Here is where a person is detected
             Person = 1
