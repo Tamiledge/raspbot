@@ -188,7 +188,8 @@ fatal_error = 0
 retries=0
 played_hello=0
 played_byebye=0
-quadrant=[(0,0,0,0)]*OMRON_DATA_LIST		# quadrant of the display (x, y, width, height)
+quadrant=[Rect]*OMRON_DATA_LIST		# quadrant of the display (x, y, width, height)
+center=[(0,0)]*OMRON_DATA_LIST		# center of each quadrant
 px=[0]*4
 py=[0]*4
 
@@ -208,9 +209,11 @@ py = (0, pixel_width, pixel_width*2, pixel_width*3)
 for x in range(0,4):
    for y in range(0,4):
       quadrant[(x*4)+y] = (px[x], py[y], pixel_width, pixel_height)
+      center[(x*4)+y] = (pixel_width/2+px[x], pixel_height/2+py[y])
 if DEBUG:
    for i in range(0,OMRON_DATA_LIST):
       print 'Q['+str(i)+'] = '+str(quadrant[i])
+      print 'c['+str(i)+'] = '+str(center[i])
 
 try:
 # Initialize i2c bus address
@@ -325,11 +328,11 @@ try:
 
 # create the IR pixels
          for i in range(0,OMRON_DATA_LIST):
-            pygame.draw.rect(screen, fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
+            screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
 # Display temp value
             text = font.render("%.1f"%temperature_array[i], 1, (14, 14, 14))
             textpos = text.get_rect()
-            textpos.centerx = screen.get_rect(center).centerx
+            textpos.center = center[i]
             screen.blit(text, textpos)
 
 # update the screen
