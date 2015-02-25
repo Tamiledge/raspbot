@@ -34,6 +34,9 @@ MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
 SERVO=1				# set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11		# GPIO number 
 DEBUG=0				# set this to 1 to see debug messages on monitor
+SCREEN_DIMENSIONS = [800, 800]	# setup the IR color window
+MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
+MAX_TEMP = 212			# minimum expected temperature in Fahrenheit
 
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BOARD)
@@ -122,14 +125,46 @@ def make_horizontal(temp_list):
 
    return tlist
 
-if "-debug" in sys.argv:
-   DEBUG=1				# set this to 1 to see debug messages on monitor
+# function to calculate color from temperature
+def fahrenheit_to_rgb(maxVal, minVal, actual):
+   midVal = (maxVal - minVal)/2
+   intR = 0
+   intG = 0
+   intB = 0
+
+   if actual >= minVal or actual <= maxVal:
+      if (actual >= midVal):
+         intR = 255
+         intG = round(255 * ((maxVal - actual) / (maxVal - midVal)))
+      else:
+         intG = 255
+         intR = round(255 * ((actual - minVal) / (midVal - minVal)))
+      if DEBUG:
+         print 'Temp to RGB = ('+str(intR)+', '+str(intG)+', '+str(intB)+')'
+
+   return ((intR, intG, intB))
+
+
+
+def fahrenheit_to_kelvin(fahrenheit):
+   kelvin = ((5*(fahrenheit - 32))/9) + 273
+   if DEBUG:
+      print "%.1f"%fahrenheit+' F = '+"%.1f"%kelvin+' K'
+   return kelvin
+
+def celsius_to_kelvin(celsius):
+    return (celsius + 273)
 
 ###############################
 #
 # Start of main line program
 #
 ###############################
+
+# Handle command line arguments
+if "-debug" in sys.argv:
+   DEBUG=1				# set this to 1 to see debug messages on monitor
+
 # Initialize variables
 temperature_array=[0.0]*OMRON_DATA_LIST		# holds the recently measured temperature
 temperature_previous=[0.0]*OMRON_DATA_LIST	# keeps track of the previous values
@@ -187,11 +222,11 @@ try:
 
 # Initialize screen
    pygame.init()
+   font = pygame.font.Font(None, 36)
 
 # setup the IR color window
+   screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.NOFRAME)
    pygame.display.set_caption('IR temp array')
-   screen_dims = [300, 200]
-   screen = pygame.display.set_mode(screen_dims,pygame.NOFRAME)
 
 #   point - point with two coordinates (x,y)
 #   rect - two points forming a rectangle (x1,y1) (x2,y2)
@@ -202,7 +237,7 @@ try:
 # Fill background
    background = pygame.Surface(screen.get_size())
    background = background.convert()
-   background.fill((255, 255, 255))
+   background.fill((0, 0, 0))
 
 # Display some text
 #   font = pygame.font.Font(None, 36)
@@ -216,8 +251,8 @@ try:
    pygame.display.flip()
 
 # create a rectangle with a specific color
-   color1 = (150, 150, 150)
-   screen.fill(color1, p0)
+#   color1 = (150, 150, 150)
+#   screen.fill(color1, p0)
 
 # initialze the music player
    pygame.mixer.init()
@@ -285,14 +320,33 @@ try:
          if DEBUG:
             print 'Omron D6T internal temp = '+"%.1f"%room_temp+' F'
 
+# set the background color based on temperature
+         max_temp = max(temperature_array)
+         if DEBUG:
+            print 'max measured temp = '+"%.1f"%max_temp+' F'
+         
+         background.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, max_temp))
+
+# Display some text
+         text = font.render("%.1f"%max_temp+' F', 1, (14, 14, 14))
+         textpos = text.get_rect()
+         textpos.centerx = background.get_rect().centerx
+         background.blit(text, textpos)
+
+# Blit everything to the screen
+         screen.blit(background, (0, 0))
+         pygame.display.flip()
+
          if max(temperature_array) > room_temp+TEMPMARGIN:    # Here is where a person is detected
             Person = 1
             break
          else:
             Person = 0
             break
-      
-# end of while loop
+
+#############################
+# End main while loop
+#############################
 
       if fatal_error:
          break
@@ -336,10 +390,10 @@ try:
          else:
             time.sleep(0.05)				# no one is in front of the device
 
-      if played_hello:
-         after_hello_message = random.choice(after_hello_audio)         
-         play_sound(MAX_VOLUME, after_hello_message)
-         played_hello=0
+#      if played_hello:
+#         after_hello_message = random.choice(after_hello_audio)         
+#         play_sound(MAX_VOLUME, after_hello_message)
+#         played_hello=0
 
 #      if played_byebye:
 #         after_byebye_message = random.choice(after_byebye_audio)
