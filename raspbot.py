@@ -16,6 +16,7 @@ import getopt
 import time 
 import pigpio
 import time
+from webcolors import *
 import pygame
 from pygame.locals import *
 import random
@@ -37,6 +38,9 @@ DEBUG=0				# set this to 1 to see debug messages on monitor
 SCREEN_DIMENSIONS = [400, 400]	# setup the IR color window
 MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
 MAX_TEMP = 200			# minimum expected temperature in Fahrenheit
+
+# Colors
+
 
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BOARD)
@@ -198,7 +202,7 @@ pygame.init()
 font = pygame.font.Font(None, 36)
 
 # setup the IR color window
-screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.NOFRAME)
+screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.FULLSCREEN)
 pygame.display.set_caption('IR temp array')
 
 # initialize the window quadrant areas for displaying temperature
@@ -280,7 +284,20 @@ try:
 #############################
    while True:			        # The main loop
       while True: 				# do this loop until a person shows up
+         
          time.sleep(MEASUREMENT_WAIT_PERIOD)
+
+         for event in pygame.event.get():
+            if event.type == QUIT:
+               pygame.quit()
+               sys.exit()
+            if event.type == KEYDOWN:
+               if event.key == K_q or event.key == K_ESCAPE:
+                  pygame.quit()
+                  sys.exit()
+               if event.key == (KMOD_LCTRL | K_c):
+                  pygame.quit()
+                  sys.exit()
 
 # read the raw temperature data
 # 
@@ -330,7 +347,10 @@ try:
          for i in range(0,OMRON_DATA_LIST):
             screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
 # Display temp value
-            text = font.render("%.1f"%temperature_array[i], 1, (14, 14, 14))
+            if temperature_array[i] > room_temp+TEMPMARGIN:
+               text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('red'))
+            else:
+               text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('navy'))
             textpos = text.get_rect()
             textpos.center = center[i]
             screen.blit(text, textpos)
