@@ -16,6 +16,7 @@ import getopt
 import time 
 import pigpio
 import time
+from datetime import datetime
 from webcolors import *
 import pygame
 from pygame.locals import *
@@ -35,11 +36,12 @@ MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
 SERVO=1				# set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11		# GPIO number 
 DEBUG=0				# set this to 1 to see debug messages on monitor
-SCREEN_DIMENSIONS = [400, 400]	# setup the IR color window
+SCREEN_DIMENSIONS = [400, 600]	# setup the IR color window [0]= width [1]= height
 MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
 MAX_TEMP = 200			# minimum expected temperature in Fahrenheit
 
-# Colors
+# Logfile
+LOGFILE_NAME = 'Raspbot_logfile.txt'
 
 
 import RPi.GPIO as GPIO
@@ -62,8 +64,8 @@ def play_sound(volume, message):
    pygame.mixer.music.set_volume(volume)         
    pygame.mixer.music.load(message)
    pygame.mixer.music.play()
-   while pygame.mixer.music.get_busy() == True:
-      continue
+#   while pygame.mixer.music.get_busy() == True:
+#      continue
 
 #def set_servo(pi, servo_GPIO_pin, direction, delay_time):  
 #   pw = direction + (servo_GPIO_pin*50)
@@ -196,6 +198,12 @@ quadrant=[Rect]*OMRON_DATA_LIST		# quadrant of the display (x, y, width, height)
 center=[(0,0)]*OMRON_DATA_LIST		# center of each quadrant
 px=[0]*4
 py=[0]*4
+omron_error_count = 0
+omron_read_count = 0
+
+# Open log file
+logfile = open(LOGFILE_NAME, 'wb')
+logfile.write('\r\nLog file opened at '+str(datetime.now()))
 
 # Initialize screen
 pygame.init()
@@ -208,19 +216,27 @@ pygame.display.set_caption('IR temp array')
 # initialize the window quadrant areas for displaying temperature
 pixel_width = SCREEN_DIMENSIONS[0]/4
 px = (pixel_width*3, pixel_width*2, pixel_width, 0)
-pixel_height = SCREEN_DIMENSIONS[1]/4
+pixel_height = SCREEN_DIMENSIONS[0]/4               # using width here to keep an equal square; bottom section used for messages
 py = (0, pixel_width, pixel_width*2, pixel_width*3)
 for x in range(0,4):
    for y in range(0,4):
       quadrant[(x*4)+y] = (px[x], py[y], pixel_width, pixel_height)
       center[(x*4)+y] = (pixel_width/2+px[x], pixel_height/2+py[y])
-if DEBUG:
-   for i in range(0,OMRON_DATA_LIST):
-      print 'Q['+str(i)+'] = '+str(quadrant[i])
-      print 'c['+str(i)+'] = '+str(center[i])
+#if DEBUG:
+#   for i in range(0,OMRON_DATA_LIST):
+#      print 'Q['+str(i)+'] = '+str(quadrant[i])
+#      print 'c['+str(i)+'] = '+str(center[i])
+
+# initialize the location of the message area
+room_temp_area = (0, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+room_temp_msg_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
+
+message_area = (0, SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+message_area_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/6)+(SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
 
 try:
 # Initialize i2c bus address
+   logfile.write('\r\nInitializing smbus at '+str(datetime.now()))
    i2c_bus = smbus.SMBus(1)
    time.sleep(0.05)				# Wait a short time
 
@@ -236,9 +252,10 @@ try:
 
 # intialize the pigpio library and socket connection to the daemon (pigpiod)
    pi = pigpio.pi()              # use defaults
+   version = pi.get_pigpio_version()
    if DEBUG:
-      version = pi.get_pigpio_version()
       print 'PiGPIO version = '+str(version)
+   logfile.write('\r\nPiGPIO version = '+str(version))
 
 # Initialize the selected Omron sensor
    if DEBUG:
@@ -248,6 +265,7 @@ try:
 
    if omron1_handle < 1:
       print 'I2C sensor not found!'
+      logfile.write('\r\nI2C sensor not found! at '+str(datetime.now()))
       sys.exit(0);
 
 # servo motor inits
@@ -274,6 +292,7 @@ try:
 #   set_servo(pi, servo, turnAway[0], turnAway[1])
 
    print 'Looking for a person'
+   logfile.write('\r\nLooking for a person at '+str(datetime.now()))
 
    Person = 0				# initialize the person tracker
    person_existed_last_time = 0
@@ -290,13 +309,19 @@ try:
          for event in pygame.event.get():
             if event.type == QUIT:
                pygame.quit()
+               logfile.write('\r\npygame event QUIT at '+str(datetime.now()))
+               logfile.close
                sys.exit()
             if event.type == KEYDOWN:
                if event.key == K_q or event.key == K_ESCAPE:
                   pygame.quit()
+                  logfile.write('\r\npygame event: keyboard q or esc pressed at '+str(datetime.now()))
+                  logfile.close
                   sys.exit()
                if event.key == (KMOD_LCTRL | K_c):
                   pygame.quit()
+                  logfile.write('\r\npygame event: keyboard ^c pressed at '+str(datetime.now()))
+                  logfile.close
                   sys.exit()
 
 # read the raw temperature data
@@ -314,16 +339,19 @@ try:
 # returns bytes_read - if not equal to length of temperature array, then sensor error
  
          (bytes_read, temperature_array, room_temp) = omron_read(omron1_handle, DEGREE_UNIT, OMRON_BUFFER_LENGTH, pi)
-
+         omron_read_count += 1
+         
 # Display each element's temperature in F
          if DEBUG:
             print 'New temperature measurement'
             print_temps(temperature_array)
 
          if bytes_read != OMRON_BUFFER_LENGTH: # sensor problem
+            omron_error_count += 1
             print ''
             print 'ERROR: Omron thermal sensor failure! Bytes read: '+str(bytes_read)
             print ''
+            logfile.write('\r\nOmron sensor failure count: '+str(omron_error_count)+' out of : '+str(omron_read_count)+'. Bytes read = '+str(bytes_read)+'at '+str(datetime.now()))
             fatal_error = 1
             break
 
@@ -345,6 +373,7 @@ try:
 
 # create the IR pixels
          for i in range(0,OMRON_DATA_LIST):
+# This fills each little array square with a background color that matches the temp
             screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
 # Display temp value
             if temperature_array[i] > room_temp+TEMPMARGIN:
@@ -355,13 +384,36 @@ try:
             textpos.center = center[i]
             screen.blit(text, textpos)
 
+# Create an area to display the room temp and messages
+         screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, room_temp), room_temp_area)
+         text = font.render("Room: %.1f"%room_temp, 1, name_to_rgb('navy'))
+         textpos = text.get_rect()
+         textpos.center = room_temp_msg_xy
+         screen.blit(text, textpos)
+
 # update the screen
          pygame.display.update()
 
          if max(temperature_array) > room_temp+TEMPMARGIN:    # Here is where a person is detected
-            Person = 1
-            break
+            if max(temperature_array) > 100:
+               screen.fill(name_to_rgb('red'), message_area)
+               text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
+               textpos = text.get_rect()
+               textpos.center = message_area_xy
+               screen.blit(text, textpos)
+# update the screen
+               pygame.display.update()
+            else:
+               Person = 1
+               break
          else:
+            screen.fill(name_to_rgb('white'), message_area)
+            text = font.render("Waiting for a freind...", 1, name_to_rgb('blue'))
+            textpos = text.get_rect()
+            textpos.center = message_area_xy
+            screen.blit(text, textpos)
+# update the screen
+            pygame.display.update()
             Person = 0
             break
 
@@ -374,6 +426,15 @@ try:
 
       if Person == 1:
          if person_existed_last_time == 0:			# person detected for the first time
+
+            screen.fill(name_to_rgb('white'), message_area)
+            text = font.render("Hello!", 1, name_to_rgb('red'))
+            textpos = text.get_rect()
+            textpos.center = message_area_xy
+            screen.blit(text, textpos)
+# update the screen
+            pygame.display.update()
+
             if DEBUG:
                print "Hello Person!"
 
@@ -393,6 +454,15 @@ try:
 
       else:
          if person_existed_last_time == 1:			# person moved away from the device
+
+            screen.fill(name_to_rgb('white'), message_area)
+            text = font.render("Bye bye!", 1, name_to_rgb('red'))
+            textpos = text.get_rect()
+            textpos.center = message_area_xy
+            screen.blit(text, textpos)
+# update the screen
+            pygame.display.update()
+
             if DEBUG:
                print "Bye bye Person!"
 
@@ -432,5 +502,6 @@ except KeyboardInterrupt:
 except IOError:
    print ''
    print 'I/O Error; quitting'
-
+   logfile.write('I/O Error: quitting')
+   logfile.close()
 
