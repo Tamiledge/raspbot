@@ -33,8 +33,8 @@ MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
 TEMPMARGIN=3			# number of degrees F greater than room temp to detect a person
 DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
 MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
-SERVO=1				# set this to 1 if the servo motor is wired up
-SERVO_GPIO_PIN = 11		# GPIO number 
+SERVO=0				# set this to 1 if the servo motor is wired up
+SERVO_GPIO_PIN = 11		# GPIO number (GPIO 11 aka. SCLK)
 DEBUG=0				# set this to 1 to see debug messages on monitor
 SCREEN_DIMENSIONS = [400, 600]	# setup the IR color window [0]= width [1]= height
 MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
@@ -45,6 +45,7 @@ LOGFILE_NAME = 'Raspbot_logfile.txt'
 
 
 import RPi.GPIO as GPIO
+GPIO.setwarnings(False)         # if true, we get warnings about DMA channel in use
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
 from RPIO import PWM		# for the servo motor
@@ -66,15 +67,6 @@ def play_sound(volume, message):
    pygame.mixer.music.play()
 #   while pygame.mixer.music.get_busy() == True:
 #      continue
-
-#def set_servo(pi, servo_GPIO_pin, direction, delay_time):  
-#   pw = direction + (servo_GPIO_pin*50)
-#   if (pw != 0 and (pw < 500 or pw >2500)):
-#      print 'Servo pulse width must be either 0 or between 500 and 2500: pw='+str(pw)
-#      pw = 0
-#   pi.set_servo_pulsewidth(servo_GPIO_pin, pw)
-#   time.sleep(delay_time)
-#   pi.set_servo_pulsewidth(servo_GPIO_pin, 0);	# set motor off
 
 def print_temps(temp_list):
 # Display each element's temperature in F
@@ -175,6 +167,16 @@ def fahrenheit_to_kelvin(fahrenheit):
 def celsius_to_kelvin(celsius):
     return (celsius + 273)
 
+def crash_and_burn(msg, pygame, servo, logfile):
+   if DEBUG:
+      print msg
+   if SERVO:
+      servo.stop_servo(SERVO_GPIO_PIN)
+   logfile.write(msg+' @ '+str(datetime.now()))
+   logfile.close
+   pygame.quit()
+   sys.exit()
+
 ###############################
 #
 # Start of main line program
@@ -184,6 +186,8 @@ def celsius_to_kelvin(celsius):
 # Handle command line arguments
 if "-debug" in sys.argv:
    DEBUG=1				# set this to 1 to see debug messages on monitor
+if "-servo" in sys.argv:
+   SERVO=1				# set this to 1 to see debug messages on monitor
 
 # Initialize variables
 temperature_array=[0.0]*OMRON_DATA_LIST		# holds the recently measured temperature
@@ -210,7 +214,8 @@ pygame.init()
 font = pygame.font.Font(None, 36)
 
 # setup the IR color window
-screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.FULLSCREEN)
+screen = pygame.display.set_mode(SCREEN_DIMENSIONS)
+#screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.FULLSCREEN)
 pygame.display.set_caption('IR temp array')
 
 # initialize the window quadrant areas for displaying temperature
@@ -264,9 +269,8 @@ try:
    (omron1_handle, omron1_result) = omron_init(RASPI_I2C_CHANNEL, OMRON_1, pi, i2c_bus) # passing in the i2c address of the sensor
 
    if omron1_handle < 1:
-      print 'I2C sensor not found!'
-      logfile.write('\r\nI2C sensor not found! at '+str(datetime.now()))
-      sys.exit(0);
+      crash_msg = '\r\nI2C sensor not found!'
+      crash_and_burn(crash_msg, pygame, servo, logfile)
 
 # servo motor inits
 #   turnAway =  [1000, 0.14]		# [0] = pulse width (direction) [1] = time
@@ -279,8 +283,7 @@ try:
       GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
       servo = PWM.Servo()
       servo.set_servo(SERVO_GPIO_PIN, 1500)
-      time.sleep(0.3)
-      servo.stop_servo(SERVO_GPIO_PIN)
+#      servo.stop_servo(SERVO_GPIO_PIN)
 
 # initialze the music player
    pygame.mixer.init()
@@ -308,21 +311,15 @@ try:
 
          for event in pygame.event.get():
             if event.type == QUIT:
-               pygame.quit()
-               logfile.write('\r\npygame event QUIT at '+str(datetime.now()))
-               logfile.close
-               sys.exit()
+               crash_msg = '\r\npygame event QUIT'
+               crash_and_burn(crash_msg, pygame, servo, logfile)
             if event.type == KEYDOWN:
                if event.key == K_q or event.key == K_ESCAPE:
-                  pygame.quit()
-                  logfile.write('\r\npygame event: keyboard q or esc pressed at '+str(datetime.now()))
-                  logfile.close
-                  sys.exit()
+                  crash_msg = '\r\npygame event: keyboard q or esc pressed'
+                  crash_and_burn(crash_msg, pygame, servo, logfile)
                if event.key == (KMOD_LCTRL | K_c):
-                  pygame.quit()
-                  logfile.write('\r\npygame event: keyboard ^c pressed at '+str(datetime.now()))
-                  logfile.close
-                  sys.exit()
+                  crash_msg = '\r\npygame event: keyboard ^c pressed'
+                  crash_and_burn(crash_msg, pygame, servo, logfile)
 
 # read the raw temperature data
 # 
@@ -404,11 +401,19 @@ try:
 # update the screen
                pygame.display.update()
             else:
+               screen.fill(name_to_rgb('white'), message_area)
+               text = font.render("Hello!", 1, name_to_rgb('red'))
+               textpos = text.get_rect()
+               textpos.center = message_area_xy
+               screen.blit(text, textpos)
+# update the screen
+               pygame.display.update()
+
                Person = 1
                break
          else:
             screen.fill(name_to_rgb('white'), message_area)
-            text = font.render("Waiting for a freind...", 1, name_to_rgb('blue'))
+            text = font.render("Waiting...", 1, name_to_rgb('blue'))
             textpos = text.get_rect()
             textpos.center = message_area_xy
             screen.blit(text, textpos)
@@ -442,15 +447,13 @@ try:
             if SERVO:
                if DEBUG:
                   print 'Servo: Facing Person'
-#               set_servo(pi, servo, facePerson[0], facePerson[1])
+               servo.set_servo(SERVO_GPIO_PIN, 500)
 
 # Play "hello" sound effect
             hello_message = random.choice(hello_audio)         
             play_sound(MAX_VOLUME, hello_message)
             person_existed_last_time = 1
             played_hello =1
-         else:
-            time.sleep(0.05)				# person remains in front of the device
 
       else:
          if person_existed_last_time == 1:			# person moved away from the device
@@ -466,6 +469,12 @@ try:
             if DEBUG:
                print "Bye bye Person!"
 
+# Move head
+            if SERVO:
+               if DEBUG:
+                  print 'Servo: Facing Person'
+               servo.set_servo(SERVO_GPIO_PIN, 1500)
+
 # Play "bye bye" sound effect
             byebye_message = random.choice(byebye_audio)
             play_sound(MAX_VOLUME, byebye_message)
@@ -478,8 +487,6 @@ try:
 #               set_servo(pi, servo, turnAway[0], turnAway[1])
 
             person_existed_last_time = 0
-         else:
-            time.sleep(0.05)				# no one is in front of the device
 
 #      if played_hello:
 #         after_hello_message = random.choice(after_hello_audio)         
@@ -494,14 +501,12 @@ try:
    # end if
 
 # end of main loop
+
 except KeyboardInterrupt:
-   print ''
-   print 'Keyboard interrupt; cleaning up'
-   pi.i2c_close(omron1_handle)
+   crash_msg = '\r\nKeyboard interrupt; quitting'
+   crash_and_burn(crash_msg, pygame, servo, logfile)
 
 except IOError:
-   print ''
-   print 'I/O Error; quitting'
-   logfile.write('I/O Error: quitting')
-   logfile.close()
+   crash_msg = '\r\nI/O Error; quitting'
+   crash_and_burn(crash_msg, pygame, servo, logfile)
 
