@@ -33,16 +33,44 @@ MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
 TEMPMARGIN=3			# number of degrees F greater than room temp to detect a person
 DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
 MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
-SERVO=0				# set this to 1 if the servo motor is wired up
+SERVO=1				# set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11		# GPIO number (GPIO 11 aka. SCLK)
 DEBUG=0				# set this to 1 to see debug messages on monitor
 SCREEN_DIMENSIONS = [400, 600]	# setup the IR color window [0]= width [1]= height
 MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
 MAX_TEMP = 200			# minimum expected temperature in Fahrenheit
 
+# Servo positions
+FORWARD = 1500                  # Facing straign forward
+CW_FULL = 500                   # 90 degrees clockwise from FORWARD
+CW_HALF = 1000                  # 45 degrees clockwise from FORWARD
+CCW_FULL = 2500                 # 90 degrees Counter clockwise from FORWARD
+CCW_HALF = 2000                 # 45 degrees Counter clockwise from FORWARD
+POSVECT_MIN = 0                 # POSVECT is the vector position of the robot head
+POSVECT_MAX = 2000              # POSVECT is a value between MIN and MAX where MIN is full clockwise and MAX is full CCW
+POSVECT_OFFSET = 500            # When POSVECT is added to the offset, the number can be used to position the servo
+OBJVECT_MIN = 0                 # OBJVECT is the vector position of the object generating heat
+OBJVECT_MAX = 7                 # OBJVECT is a number between 0 and 7 which represents a 1x8 horizontal array of heat sensing
+                                # OBJVECT is used to calculate POSVECT to position the head to face the heat
+OBJVECT_0 = 500                 # 
+OBJVECT_1 = 830                 # 0     1     2     3     4     5     6     7     8
+OBJVECT_2 = 1120                # |_____|_____|_____|_____|_____|_____|_____|_____|
+OBJVECT_3 = 1370                # |     |     |     |     |     |     |     |     | 
+OBJVECT_4 = 1620                # |     |     |     |     |     |     |     |     |
+OBJVECT_5 = 1870                # |_____|_____|_____|_____|_____|_____|_____|_____|
+OBJVECT_6 = 2330                #    |     |     |     |     |     |     |     |
+OBJVECT_7 = 2500                #
+
+
+
+SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
+SERVO_LIMIT_CW = OBJVECT_0
+SERVO_CUR_DIR_CCW = 2
+SERVO_LIMIT_CCW = OBJVECT_7
+SERVO_GRANULARTY = 50           # minimum granularity of the servo is 10us
+
 # Logfile
 LOGFILE_NAME = 'Raspbot_logfile.txt'
-
 
 import RPi.GPIO as GPIO
 GPIO.setwarnings(False)         # if true, we get warnings about DMA channel in use
@@ -94,8 +122,8 @@ def print_temps(temp_list):
 # Make a 1x7 horizontal array of temps based on a 4x4 array
 # for use in head tracking of high temps
 def make_horizontal(temp_list):
-#   if DEBUG:
-#      print 'Making 1x8 array'
+   if DEBUG:
+      print 'Making 1x8 array'
 
    tlist=[0.0]*HORIZ_LIST_SIZE
 
@@ -111,15 +139,15 @@ def make_horizontal(temp_list):
    short_list=[tlist[4],tlist[6]]
    tlist[5] = avg(short_list)
 
-#   if DEBUG:
-#      print 'Horizontal Temperature string'
-#      print "%.1f"%tlist[0]+' ',
-#      print "%.1f"%tlist[1]+' ',
-#      print "%.1f"%tlist[2]+' ',
-#      print "%.1f"%tlist[3]+' ',
-#      print "%.1f"%tlist[4]+' ',
-#      print "%.1f"%tlist[5]+' ',
-#      print "%.1f"%tlist[6]+' '
+   if DEBUG:
+      print 'Horizontal Temperature string'
+      print "%.1f"%tlist[0]+' ',
+      print "%.1f"%tlist[1]+' ',
+      print "%.1f"%tlist[2]+' ',
+      print "%.1f"%tlist[3]+' ',
+      print "%.1f"%tlist[4]+' ',
+      print "%.1f"%tlist[5]+' ',
+      print "%.1f"%tlist[6]+' '
 
    return tlist
 
@@ -186,14 +214,15 @@ def crash_and_burn(msg, pygame, servo, logfile):
 # Handle command line arguments
 if "-debug" in sys.argv:
    DEBUG=1				# set this to 1 to see debug messages on monitor
-if "-servo" in sys.argv:
-   SERVO=1				# set this to 1 to see debug messages on monitor
+if "-noservo" in sys.argv:
+   SERVO=0				# set this to 1 to see debug messages on monitor
 
 # Initialize variables
 temperature_array=[0.0]*OMRON_DATA_LIST		# holds the recently measured temperature
 temperature_previous=[0.0]*OMRON_DATA_LIST	# keeps track of the previous values
 temperature_moving_ave=[0.0]*OMRON_DATA_LIST	# moving average of temperature
 horiz_list=[0.0]*HORIZ_LIST_SIZE
+object_vector_list=[OBJVECT_7, OBJVECT_6,OBJVECT_5,OBJVECT_4,OBJVECT_3,OBJVECT_2,OBJVECT_1,OBJVECT_0]*HORIZ_LIST_SIZE
 fatal_error = 0
 retries=0
 played_hello=0
@@ -204,6 +233,8 @@ px=[0]*4
 py=[0]*4
 omron_error_count = 0
 omron_read_count = 0
+servo_position = FORWARD                # initialize the servo to face directly forward
+servo_direction = SERVO_CUR_DIR_CCW     # initially start moving the servo CCW
 
 # Open log file
 logfile = open(LOGFILE_NAME, 'wb')
@@ -272,27 +303,17 @@ try:
       crash_msg = '\r\nI2C sensor not found!'
       crash_and_burn(crash_msg, pygame, servo, logfile)
 
-# servo motor inits
-#   turnAway =  [1000, 0.14]		# [0] = pulse width (direction) [1] = time
-#   facePerson= [2000, 0.1]		        # [0] = pulse width (direction) [1] = time
-
+# Initialize servo position
    if SERVO:
       if DEBUG:
          print 'Servo: initializing servo'
       GPIO.setmode(GPIO.BOARD)
       GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
       servo = PWM.Servo()
-      servo.set_servo(SERVO_GPIO_PIN, 1500)
-#      servo.stop_servo(SERVO_GPIO_PIN)
+      servo.set_servo(SERVO_GPIO_PIN, servo_position)
 
 # initialze the music player
    pygame.mixer.init()
-
-# Initialize servo position
-   if SERVO:
-      if DEBUG:
-         print 'Servo: Turning away from person'
-#   set_servo(pi, servo, turnAway[0], turnAway[1])
 
    print 'Looking for a person'
    logfile.write('\r\nLooking for a person at '+str(datetime.now()))
@@ -409,6 +430,20 @@ try:
 # update the screen
                pygame.display.update()
 
+# face the servo twoards the heat
+# get the vector of the maximum horizontal heat
+               object_max = max(horiz_temp)
+               object_vector = horiz_temp.index(object_max)
+               if DEBUG:
+                  print 'Servo: Object vector = '+str(object_vector)
+            
+               if (servo_position >= OBJVECT_0 and servo_position <= OBJVECT_7 ):
+# calculate a positon for the servo - try to overshoot and correct
+                  if (servo_position != object_vector_list[object_vector]):
+                     servo_position = object_vector_list[object_vector]
+# move the servo
+                     servo.set_servo(SERVO_GPIO_PIN, servo_position)
+
                Person = 1
                break
          else:
@@ -420,6 +455,33 @@ try:
 # update the screen
             pygame.display.update()
             Person = 0
+
+# put servo in roaming mode
+            if SERVO:
+
+               if (servo_position == SERVO_LIMIT_CCW):
+                  if DEBUG:
+                     print 'CCW limit hit, changing direction'
+                  servo_direction = SERVO_CUR_DIR_CW
+               if (servo_position == SERVO_LIMIT_CW):
+                  if DEBUG:
+                     print 'CW limit hit, changing direction'
+                  servo_direction = SERVO_CUR_DIR_CCW
+               
+               if DEBUG:
+                  print 'Servo: Roaming. Position: '+str(servo_position),
+               if servo_direction == SERVO_CUR_DIR_CCW:
+                  if DEBUG:
+                     print ' Direction: CCW'
+                  servo_position += SERVO_GRANULARTY
+               if servo_direction == SERVO_CUR_DIR_CW:
+                  if DEBUG:
+                     print ' Direction: CW'
+                  servo_position -= SERVO_GRANULARTY
+                  
+               servo.set_servo(SERVO_GPIO_PIN, servo_position)
+
+# End of inner While loop
             break
 
 #############################
@@ -444,10 +506,11 @@ try:
                print "Hello Person!"
 
 # Move head
-            if SERVO:
-               if DEBUG:
-                  print 'Servo: Facing Person'
-               servo.set_servo(SERVO_GPIO_PIN, 500)
+#            if SERVO:
+#               if DEBUG:
+#                  print 'Servo: Facing Person'
+#               servo.set_servo(SERVO_GPIO_PIN, CCW_HALF)
+#               time.sleep(0.5)		    # Wait for the temps to normalize
 
 # Play "hello" sound effect
             hello_message = random.choice(hello_audio)         
@@ -470,21 +533,16 @@ try:
                print "Bye bye Person!"
 
 # Move head
-            if SERVO:
-               if DEBUG:
-                  print 'Servo: Facing Person'
-               servo.set_servo(SERVO_GPIO_PIN, 1500)
+#            if SERVO:
+#               if DEBUG:
+#                  print 'Servo: Facing AWAY'
+#               servo.set_servo(SERVO_GPIO_PIN, CW_HALF)
+#               time.sleep(0.5)		    # Wait for the temps to normalize
 
 # Play "bye bye" sound effect
             byebye_message = random.choice(byebye_audio)
             play_sound(MAX_VOLUME, byebye_message)
             played_byebye =1
-
-# Move head back
-            if SERVO:
-               if DEBUG:
-                  print 'Servo: Turning away from Person'
-#               set_servo(pi, servo, turnAway[0], turnAway[1])
 
             person_existed_last_time = 0
 
