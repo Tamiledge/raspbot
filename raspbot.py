@@ -30,7 +30,6 @@ OMRON_BUFFER_LENGTH=35		# Omron data buffer size
 OMRON_DATA_LIST=16		# Omron data array - sixteen 16 bit words
 HORIZ_LIST_SIZE=7		# The 4x4 array converted to 1x7 for temp tracking
 MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
-TEMPMARGIN=3			# number of degrees F greater than room temp to detect a person
 DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
 MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
 SERVO=1				# set this to 1 if the servo motor is wired up
@@ -39,6 +38,11 @@ DEBUG=0				# set this to 1 to see debug messages on monitor
 SCREEN_DIMENSIONS = [400, 600]	# setup the IR color window [0]= width [1]= height
 MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
 MAX_TEMP = 200			# minimum expected temperature in Fahrenheit
+ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
+BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
+TEMPMARGIN=5			# number of degrees F greater than room temp to detect a person
+PERSON_TEMP = 77                # usually the temperature threshold of a person at about 3 feet
+PERSON_SENSOR_COUNT = 3         # requires this many sensors to detect a person
 
 # Servo positions
 FORWARD = 1500                  # Facing straign forward
@@ -60,7 +64,8 @@ OBJVECT_4 = 1620                # |     |     |     |     |     |     |     |   
 OBJVECT_5 = 1870                # |_____|_____|_____|_____|_____|_____|_____|_____|
 OBJVECT_6 = 2330                #    |     |     |     |     |     |     |     |
 OBJVECT_7 = 2500                #
-
+OBJVECT_FACTOR = 50
+OBJVECT_PERSON_FACTOR = 80
 
 
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
@@ -215,13 +220,20 @@ def crash_and_burn(msg, pygame, servo, logfile):
 if "-debug" in sys.argv:
    DEBUG=1				# set this to 1 to see debug messages on monitor
 if "-noservo" in sys.argv:
-   SERVO=0				# set this to 1 to see debug messages on monitor
+   SERVO=0				# assume using servo is default
+if "-roam" in sys.argv:
+   ROAM=1				# set this to 1 to allow robot to roam looking for a person
 
 # Initialize variables
 temperature_array=[0.0]*OMRON_DATA_LIST		# holds the recently measured temperature
 temperature_previous=[0.0]*OMRON_DATA_LIST	# keeps track of the previous values
 temperature_moving_ave=[0.0]*OMRON_DATA_LIST	# moving average of temperature
 horiz_list=[0.0]*HORIZ_LIST_SIZE
+left_far=[0.0]*4
+left_ctr=[0.0]*4
+right_ctr=[0.0]*4
+right_far=[0.0]*4
+
 object_vector_list=[OBJVECT_7, OBJVECT_6,OBJVECT_5,OBJVECT_4,OBJVECT_3,OBJVECT_2,OBJVECT_1,OBJVECT_0]*HORIZ_LIST_SIZE
 fatal_error = 0
 retries=0
@@ -318,10 +330,11 @@ try:
    print 'Looking for a person'
    logfile.write('\r\nLooking for a person at '+str(datetime.now()))
 
-   Person = 0				# initialize the person tracker
+   person = 0				# initialize the person tracker
    person_existed_last_time = 0
    first_time = 1
-
+   burn_hazard = 0
+   
 #############################
 # Main while loop
 #############################
@@ -373,17 +386,17 @@ try:
             fatal_error = 1
             break
 
-# Use the room temp value for the threshold to determine if a person is in front of the sensor
-         for i in range(0,OMRON_DATA_LIST):
-            list = [temperature_array[i], temperature_previous[i], temperature_moving_ave[i]]
-            temperature_moving_ave[i] = avg(list)
+# Not sure if moving average has significance
+#         for i in range(0,OMRON_DATA_LIST):
+#            list = [temperature_array[i], temperature_previous[i], temperature_moving_ave[i]]
+#            temperature_moving_ave[i] = avg(list)
 
 # Display each element's temperature in F
 #         if DEBUG:
 #            print 'Temperature moving average'
 #            print_temps(temperature_moving_ave)
 
-         horiz_temp = make_horizontal(temperature_moving_ave)
+         horiz_temp = make_horizontal(temperature_array)
 
 # Display the Omron internal temperature (room temp - something to compare signals with)
          if DEBUG:
@@ -412,40 +425,93 @@ try:
 # update the screen
          pygame.display.update()
 
-         if max(temperature_array) > room_temp+TEMPMARGIN:    # Here is where a person is detected
-            if max(temperature_array) > 100:
-               screen.fill(name_to_rgb('red'), message_area)
-               text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
-               textpos = text.get_rect()
-               textpos.center = message_area_xy
-               screen.blit(text, textpos)
-# update the screen
-               pygame.display.update()
-            else:
-               screen.fill(name_to_rgb('white'), message_area)
-               text = font.render("Hello!", 1, name_to_rgb('red'))
-               textpos = text.get_rect()
-               textpos.center = message_area_xy
-               screen.blit(text, textpos)
-# update the screen
-               pygame.display.update()
+# single point sources of head can appear to be a person, however, a person will cause multiple sensors to go above room temp, whereas, a single point source such as a light bulb or lighter flame will usually only trigger a single sensor
+# determine if more than one sensor is detecting over room temp
+         sensor_count = 0
+         for i in range(0,OMRON_DATA_LIST):
+            if temperature_array[i] > room_temp+TEMPMARGIN:    # Here is where a person is detected
+               sensor_count += 1
 
+# determine strength and direction
+         left_far = (temperature_array[0], temperature_array[4],temperature_array[8], temperature_array[12])
+         left_ctr = (temperature_array[1], temperature_array[5],temperature_array[9], temperature_array[13])
+         right_ctr = (temperature_array[2], temperature_array[6],temperature_array[10], temperature_array[14])
+         right_far = (temperature_array[3], temperature_array[7],temperature_array[11], temperature_array[15])
+                     
+         left_far_count = 0
+         for i in range(0,OMRON_DATA_LIST/4):
+            if left_far[i] > room_temp+TEMPMARGIN:    # Here is where a person is detected
+               left_far_count += 1
+         left_ctr_count = 0
+         for i in range(0,OMRON_DATA_LIST/4):
+            if left_ctr[i] > room_temp+TEMPMARGIN:    # Here is where a person is detected
+               left_ctr_count += 1
+         right_ctr_count = 0
+         for i in range(0,OMRON_DATA_LIST/4):
+            if right_ctr[i] > room_temp+TEMPMARGIN:    # Here is where a person is detected
+               right_ctr_count += 1
+         right_far_count = 0
+         for i in range(0,OMRON_DATA_LIST/4):
+            if right_far[i] > room_temp+TEMPMARGIN:    # Here is where a person is detected
+               right_far_count += 1
+
+         if DEBUG:
+            print 'LFC: '+str(left_far_count),
+            print 'LCC: '+str(left_ctr_count),
+            print 'RCC: '+str(right_ctr_count),
+            print 'RFC: '+str(right_far_count)
+
+# first look for a burn hazard
+         if max(temperature_array) > BURN_HAZARD_TEMP:
+            screen.fill(name_to_rgb('red'), message_area)
+            text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
+            textpos = text.get_rect()
+            textpos.center = message_area_xy
+            screen.blit(text, textpos)
+# update the screen
+            pygame.display.update()
+
+            burn_hazard = 1
+            break
+#         elif sensor_count >= PERSON_SENSOR_COUNT:    # Here is where a person is detected
+         elif left_far_count > 0 or left_ctr_count > 0 or right_ctr_count > 0 or right_far_count > 0:
+            screen.fill(name_to_rgb('white'), message_area)
+            text = font.render("Hello!", 1, name_to_rgb('red'))
+            textpos = text.get_rect()
+            textpos.center = message_area_xy
+            screen.blit(text, textpos)
+# update the screen
+            pygame.display.update()
+
+            if SERVO:
 # face the servo twoards the heat
-# get the vector of the maximum horizontal heat
-               object_max = max(horiz_temp)
-               object_vector = horiz_temp.index(object_max)
-               if DEBUG:
-                  print 'Servo: Object vector = '+str(object_vector)
-            
-               if (servo_position >= OBJVECT_0 and servo_position <= OBJVECT_7 ):
-# calculate a positon for the servo - try to overshoot and correct
-                  if (servo_position != object_vector_list[object_vector]):
-                     servo_position = object_vector_list[object_vector]
-# move the servo
-                     servo.set_servo(SERVO_GPIO_PIN, servo_position)
 
-               Person = 1
-               break
+# person is arriving from the left
+               if (left_far_count > 0 and left_ctr_count < 0 and right_ctr_count < 0 and right_far_count < 0):
+                  servo_position += OBJVECT_PERSON_FACTOR
+                  if DEBUG:
+                     print 'Servo: New position = '+str(servo_position)
+# person coming into view
+               elif (left_far_count > 0 and left_ctr_count > 0 and right_ctr_count < 0 and right_far_count < 0):
+                  servo_position += OBJVECT_FACTOR
+                  if DEBUG:
+                     print 'Servo: New position = '+str(servo_position)
+# person is arriving from the right
+               if (left_far_count < 0 and left_ctr_count < 0 and right_ctr_count < 0 and right_far_count > 0):
+                  servo_position -= OBJVECT_PERSON_FACTOR
+                  if DEBUG:
+                     print 'Servo: New position = '+str(servo_position)
+# person coming into view
+               elif (left_far_count < 0 and left_ctr_count < 0 and right_ctr_count > 0 and right_far_count > 0):
+                  servo_position -= OBJVECT_FACTOR
+                  if DEBUG:
+                     print 'Servo: New position = '+str(servo_position)
+# move the servo
+               servo.set_servo(SERVO_GPIO_PIN, servo_position)
+ 
+            person = 1
+            burn_hazard = 0
+            break
          else:
             screen.fill(name_to_rgb('white'), message_area)
             text = font.render("Waiting...", 1, name_to_rgb('blue'))
@@ -454,16 +520,17 @@ try:
             screen.blit(text, textpos)
 # update the screen
             pygame.display.update()
-            Person = 0
+            person = 0
+            burn_hazard = 0
 
 # put servo in roaming mode
-            if SERVO:
+            if SERVO and ROAM:
 
-               if (servo_position == SERVO_LIMIT_CCW):
+               if (servo_position >= SERVO_LIMIT_CCW):
                   if DEBUG:
                      print 'CCW limit hit, changing direction'
                   servo_direction = SERVO_CUR_DIR_CW
-               if (servo_position == SERVO_LIMIT_CW):
+               if (servo_position <= SERVO_LIMIT_CW):
                   if DEBUG:
                      print 'CW limit hit, changing direction'
                   servo_direction = SERVO_CUR_DIR_CCW
@@ -491,7 +558,7 @@ try:
       if fatal_error:
          break
 
-      if Person == 1:
+      if person == 1:
          if person_existed_last_time == 0:			# person detected for the first time
 
             screen.fill(name_to_rgb('white'), message_area)
