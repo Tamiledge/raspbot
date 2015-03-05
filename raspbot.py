@@ -330,10 +330,10 @@ def set_servo_to_position (new_position):    # position across a line from 500 t
 
 def person_position(room, t_array, s_position):
 
-    X_DELTA_0 = 200
-    X_DELTA_1 = 100
-    X_DELTA_2 = -100
-    X_DELTA_3 = -200
+    X_DELTA_0 = 300
+    X_DELTA_1 = 150
+    X_DELTA_2 = -150
+    X_DELTA_3 = -300
 
     t_delta=[0.0]*OMRON_DATA_LIST		# holds the difference between threshold and actual
     x_delta=[0.0]*4                             # holds the sums of differences along the x axis
@@ -393,7 +393,7 @@ def person_position(room, t_array, s_position):
     return person_position
             
 def person_detector(room, t_array):
-    PERSON_TEMP_SUM_THRESHOLD = 7
+    PERSON_TEMP_SUM_THRESHOLD = 5
     if DEBUG:
         print 'Finding person'
 
@@ -537,7 +537,7 @@ try:
     burn_hazard = 0
 
 # initialize the PID controller
-    pid_controller=PID(1.0,0.2,0.5)     # PID controller is the feedback loop controller for person following
+    pid_controller=PID(1.0,0.1,0.1)     # PID controller is the feedback loop controller for person following
 
 #############################
 # Main while loop
@@ -676,9 +676,10 @@ try:
                         print ' PID Error: '+str(pid_error)
 
 # make the robot turn its head to the person
-                    servo_position += pid_error
-                    set_servo_to_position(servo_position)
-                    time.sleep(MEASUREMENT_WAIT_PERIOD)                 #let the temp's settle
+                    if abs(pid_error) > MINIMUM_SERVO_GRANULARITY*5:
+                        servo_position += pid_error
+                        set_servo_to_position(servo_position)
+                        time.sleep(MEASUREMENT_WAIT_PERIOD*4)                 #let the temp's settle
 
                 person = 1
                 burn_hazard = 0
