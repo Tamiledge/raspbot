@@ -144,26 +144,15 @@ POSVECT_MIN = 0                 # POSVECT is the vector position of the robot he
 POSVECT_MAX = 2000              # POSVECT is a value between MIN and MAX where MIN is full clockwise and MAX is full CCW
 POSVECT_OFFSET = 500            # When POSVECT is added to the offset, the number can be used to position the servo
 
-                                # OBJVECT is used to calculate POSVECT to position the head to face the heat
 MIN_SERVO_POSITION = 500
-OBJVECT_0 = 500                 # 
-OBJVECT_1 = 830                 # 0     1     2     3     4     5     6     7     8
-OBJVECT_2 = 1120                # |_____|_____|_____|_____|_____|_____|_____|_____|
-OBJVECT_3 = 1370                # |     |     |     |     |     |     |     |     | 
-OBJVECT_4 = 1620                # |     |     |     |     |     |     |     |     |
-OBJVECT_5 = 1870                # |_____|_____|_____|_____|_____|_____|_____|_____|
-OBJVECT_6 = 2330                #    |     |     |     |     |     |     |     |
-OBJVECT_7 = 2500                #
 MAX_SERVO_POSITION = 2500
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
-OBJVECT_FACTOR = 50
-OBJVECT_PERSON_FACTOR = 80
 
 
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
-SERVO_LIMIT_CW = OBJVECT_0
+SERVO_LIMIT_CW = MIN_SERVO_POSITION
 SERVO_CUR_DIR_CCW = 2
-SERVO_LIMIT_CCW = OBJVECT_7
+SERVO_LIMIT_CCW = MAX_SERVO_POSITION
 SERVO_GRANULARTY = 50           # minimum granularity of the servo is 10us
 
 # Logfile
@@ -276,11 +265,11 @@ def set_servo_to_position (new_position):    # position across a line from 500 t
     if SERVO:
     # make sure we don't go out of bounds
         if new_position == 0:
-            new_position = 1500
-        elif new_position < 500:
-            new_position = 500
-        elif new_position > 2500:
-            new_position = 2500
+            new_position = ((MAX_SERVO_POSITION - MIN_SERVO_POSITION)/2) + MIN_SERVO_POSITION
+        elif new_position < MIN_SERVO_POSITION:
+            new_position = MIN_SERVO_POSITION
+        elif new_position > MAX_SERVO_POSITION:
+            new_position = MIN_SERVO_POSITION
 
         if (new_position >= MIN_SERVO_POSITION and new_position <= MAX_SERVO_POSITION):
             if (new_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
@@ -511,8 +500,9 @@ try:
 ################################
 
 #    pid_controller=PID(1.0,0.1,0.1)     # PID controller is the feedback loop controller for person following
-    pid_controller=PID(1.5,0.2,0.2)     # PID controller is the feedback loop controller for person following
-
+    pid_controller=PID(1.0,0.1,0.1)     # PID controller is the feedback loop controller for person following
+    SETTLE_TIME = 1.5                   # the time in seconds to allow the temperatures to settle once a person is found and the head has moved
+    MINIMUM_ERROR_GRANULARITY = 100     # the number of microseconds - if the PID error is less than this, the head will stop moving
 #############################
 # Main while loop
 #############################
@@ -525,13 +515,13 @@ try:
                 if event.type == QUIT:
                     crash_msg = '\r\npygame event QUIT'
                     crash_and_burn(crash_msg, pygame, servo, logfile)
-            if event.type == KEYDOWN:
-                if event.key == K_q or event.key == K_ESCAPE:
-                    crash_msg = '\r\npygame event: keyboard q or esc pressed'
-                    crash_and_burn(crash_msg, pygame, servo, logfile)
-                if event.key == (KMOD_LCTRL | K_c):
-                    crash_msg = '\r\npygame event: keyboard ^c pressed'
-                    crash_and_burn(crash_msg, pygame, servo, logfile)
+                if event.type == KEYDOWN:
+                    if event.key == K_q or event.key == K_ESCAPE:
+                        crash_msg = '\r\npygame event: keyboard q or esc pressed'
+                        crash_and_burn(crash_msg, pygame, servo, logfile)
+                    if event.key == (KMOD_LCTRL | K_c):
+                        crash_msg = '\r\npygame event: keyboard ^c pressed'
+                        crash_and_burn(crash_msg, pygame, servo, logfile)
 
 # read the raw temperature data
 # 
@@ -638,10 +628,10 @@ try:
                         print ' PID Error: '+str(pid_error)
 
 # make the robot turn its head to the person
-                    if abs(pid_error) > MINIMUM_SERVO_GRANULARITY*5:
+                    if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
                         servo_position += pid_error
                         servo_position = set_servo_to_position(servo_position)
-                        time.sleep(MEASUREMENT_WAIT_PERIOD*2)                 #let the temp's settle
+                        time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
 
                 person = 1
                 burn_hazard = 0
