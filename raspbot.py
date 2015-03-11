@@ -120,7 +120,6 @@ RASPI_I2C_CHANNEL=1		# the /dev/i2c device
 OMRON_1=0x0a 			# 7 bit I2C address of Omron MEMS Temp Sensor D6T-44L
 OMRON_BUFFER_LENGTH=35		# Omron data buffer size
 OMRON_DATA_LIST=16		# Omron data array - sixteen 16 bit words
-HORIZ_LIST_SIZE=7		# The 4x4 array converted to 1x7 for temp tracking
 MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
 DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
 MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
@@ -134,7 +133,6 @@ ROAM = 0                        # if true, robot will "roam" looking for a heat 
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN=5			# number of degrees F greater than room temp to detect a person
 PERSON_TEMP = 77                # usually the temperature threshold of a person at about 3 feet
-PERSON_SENSOR_COUNT = 4         # requires this many sensors to detect a person
 
 # Servo positions
 FORWARD = 1500                  # Facing straign forward
@@ -145,8 +143,7 @@ CCW_HALF = 2000                 # 45 degrees Counter clockwise from FORWARD
 POSVECT_MIN = 0                 # POSVECT is the vector position of the robot head
 POSVECT_MAX = 2000              # POSVECT is a value between MIN and MAX where MIN is full clockwise and MAX is full CCW
 POSVECT_OFFSET = 500            # When POSVECT is added to the offset, the number can be used to position the servo
-OBJVECT_MIN = 0                 # OBJVECT is the vector position of the object generating heat
-OBJVECT_MAX = 7                 # OBJVECT is a number between 0 and 7 which represents a 1x8 horizontal array of heat sensing
+
                                 # OBJVECT is used to calculate POSVECT to position the head to face the heat
 MIN_SERVO_POSITION = 500
 OBJVECT_0 = 500                 # 
@@ -219,38 +216,6 @@ def print_temps(temp_list):
     print "%.1f"%temp_list[15]+' ',
     print ''
 
-# Make a 1x7 horizontal array of temps based on a 4x4 array
-# for use in head tracking of high temps
-def make_horizontal(temp_list):
-    if DEBUG:
-        print 'Making 1x8 array'
-
-    tlist=[0.0]*HORIZ_LIST_SIZE
-
-    tlist[0] = max(temp_list[0], temp_list[4], temp_list[8], temp_list[12])
-    tlist[2] = max(temp_list[1], temp_list[5], temp_list[9], temp_list[13])
-    tlist[4] = max(temp_list[2], temp_list[6], temp_list[10], temp_list[14])
-    tlist[6] = max(temp_list[3], temp_list[7], temp_list[11], temp_list[15])
-
-    short_list=[tlist[0],tlist[2]]
-    tlist[1] = avg(short_list)
-    short_list=[tlist[2],tlist[4]]
-    tlist[3] = avg(short_list)
-    short_list=[tlist[4],tlist[6]]
-    tlist[5] = avg(short_list)
-
-    if DEBUG:
-        print 'Horizontal Temperature string'
-        print "%.1f"%tlist[0]+' ',
-        print "%.1f"%tlist[1]+' ',
-        print "%.1f"%tlist[2]+' ',
-        print "%.1f"%tlist[3]+' ',
-        print "%.1f"%tlist[4]+' ',
-        print "%.1f"%tlist[5]+' ',
-        print "%.1f"%tlist[6]+' '
-
-    return tlist
-
 # function to calculate color from temperature
 def fahrenheit_to_rgb(maxVal, minVal, actual):
     midVal = (maxVal - minVal)/2
@@ -317,16 +282,20 @@ def set_servo_to_position (new_position):    # position across a line from 500 t
         elif new_position > 2500:
             new_position = 2500
 
-        if DEBUG:
-            print 'Setting servo to '+str(new_position)
         if (new_position >= MIN_SERVO_POSITION and new_position <= MAX_SERVO_POSITION):
             if (new_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
                 final_position = (new_position//MINIMUM_SERVO_GRANULARITY)*MINIMUM_SERVO_GRANULARITY
             else:
                 final_position = ((new_position//MINIMUM_SERVO_GRANULARITY)+1)*MINIMUM_SERVO_GRANULARITY
+            if DEBUG:
+                print 'Setting servo to final position: '+str(final_position)
+
             servo.set_servo(SERVO_GPIO_PIN, final_position)
         else:
-            print 'ERROR: set_servo_to_position position out of range: '+str(new_position)+' min= '+str(MIN_SERVO_POSITION)+' max = '+str(MAX_SERVO_POSITION)       
+            if DEBUG:
+                print 'ERROR: set_servo_to_position position out of range: '+str(new_position)+' min= '+str(MIN_SERVO_POSITION)+' max = '+str(MAX_SERVO_POSITION)
+
+        return final_position
 
 def person_position(room, t_array, s_position):
 
@@ -425,17 +394,19 @@ if "-noservo" in sys.argv:
 if "-roam" in sys.argv:
     ROAM=1				# set this to 1 to allow robot to roam looking for a person
 
+if "-help" in sys.argv:
+    print '-debug -noservo -roam -h -help'
+    sys.exit()
+
 # Initialize variables
 temperature_array=[0.0]*OMRON_DATA_LIST		# holds the recently measured temperature
 temperature_previous=[0.0]*OMRON_DATA_LIST	# keeps track of the previous values
 temperature_moving_ave=[0.0]*OMRON_DATA_LIST	# moving average of temperature
-horiz_list=[0.0]*HORIZ_LIST_SIZE
 left_far=[0.0]*4
 left_ctr=[0.0]*4
 right_ctr=[0.0]*4
 right_far=[0.0]*4
 
-object_vector_list=[OBJVECT_0,OBJVECT_1,OBJVECT_2,OBJVECT_3,OBJVECT_4,OBJVECT_5,OBJVECT_6,OBJVECT_7]*HORIZ_LIST_SIZE
 fatal_error = 0
 retries=0
 played_hello=0
@@ -535,9 +506,12 @@ try:
     person_existed_last_time = 0
     first_time = 1
     burn_hazard = 0
-
+################################
 # initialize the PID controller
-    pid_controller=PID(1.0,0.1,0.1)     # PID controller is the feedback loop controller for person following
+################################
+
+#    pid_controller=PID(1.0,0.1,0.1)     # PID controller is the feedback loop controller for person following
+    pid_controller=PID(1.5,0.2,0.2)     # PID controller is the feedback loop controller for person following
 
 #############################
 # Main while loop
@@ -599,8 +573,6 @@ try:
                 print 'Temperature moving average'
                 print_temps(temperature_moving_ave)
 
-            horiz_temp = make_horizontal(temperature_array)
-
 # Display the Omron internal temperature (room temp - something to compare signals with)
             if DEBUG:
                 print 'Omron D6T internal temp = '+"%.1f"%room_temp+' F'
@@ -627,16 +599,6 @@ try:
 
 # update the screen
             pygame.display.update()
-
-# single point sources of head can appear to be a person, however, a person will cause multiple sensors to go above room temp, whereas, a single point source such as a light bulb or lighter flame will usually only trigger a single sensor
-# determine if more than one sensor is detecting over room temp
-            sensor_count = 0
-            for i in range(0,7):
-                if horiz_temp[i] > room_temp+TEMPMARGIN:    # Here is where a person is detected
-                    sensor_count += 1
-
-            if DEBUG:
-                print 'Person temp threshold = '+"%.1f"%(room_temp+TEMPMARGIN)+' F - Sensor count = '+str(sensor_count)
 
 ###########################
 # Burn Hazard Detected !
@@ -678,8 +640,8 @@ try:
 # make the robot turn its head to the person
                     if abs(pid_error) > MINIMUM_SERVO_GRANULARITY*5:
                         servo_position += pid_error
-                        set_servo_to_position(servo_position)
-                        time.sleep(MEASUREMENT_WAIT_PERIOD*4)                 #let the temp's settle
+                        servo_position = set_servo_to_position(servo_position)
+                        time.sleep(MEASUREMENT_WAIT_PERIOD*2)                 #let the temp's settle
 
                 person = 1
                 burn_hazard = 0
@@ -723,7 +685,7 @@ try:
                         print ' Direction: CW'
                     servo_position -= MINIMUM_SERVO_GRANULARITY
                   
-                set_servo_to_position(servo_position)
+                servo_position = set_servo_to_position(servo_position)
 
 # End of inner While loop
             break
