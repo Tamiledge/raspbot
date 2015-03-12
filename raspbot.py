@@ -184,25 +184,25 @@ def play_sound(volume, message):
 
 def print_temps(temp_list):
 # Display each element's temperature in F
-    print "%.1f"%temp_list[0]+' ',
-    print "%.1f"%temp_list[1]+' ',
-    print "%.1f"%temp_list[2]+' ',
-    print "%.1f"%temp_list[3]+' ',
-    print ''
-    print "%.1f"%temp_list[4]+' ',
-    print "%.1f"%temp_list[5]+' ',
-    print "%.1f"%temp_list[6]+' ',
-    print "%.1f"%temp_list[7]+' ',
-    print ''
-    print "%.1f"%temp_list[8]+' ',
-    print "%.1f"%temp_list[9]+' ',
-    print "%.1f"%temp_list[10]+' ',
-    print "%.1f"%temp_list[11]+' ',
-    print ''
     print "%.1f"%temp_list[12]+' ',
+    print "%.1f"%temp_list[8]+' ',
+    print "%.1f"%temp_list[4]+' ',
+    print "%.1f"%temp_list[0]+' ',
+    print ''
     print "%.1f"%temp_list[13]+' ',
+    print "%.1f"%temp_list[9]+' ',
+    print "%.1f"%temp_list[5]+' ',
+    print "%.1f"%temp_list[1]+' ',
+    print ''
     print "%.1f"%temp_list[14]+' ',
+    print "%.1f"%temp_list[10]+' ',
+    print "%.1f"%temp_list[6]+' ',
+    print "%.1f"%temp_list[2]+' ',
+    print ''
     print "%.1f"%temp_list[15]+' ',
+    print "%.1f"%temp_list[11]+' ',
+    print "%.1f"%temp_list[7]+' ',
+    print "%.1f"%temp_list[3]+' ',
     print ''
 
 # function to calculate color from temperature
@@ -288,48 +288,60 @@ def set_servo_to_position (new_position):    # position across a line from 500 t
 
 def person_position(room, t_array, s_position):
 
-    X_DELTA_0 = 300
-    X_DELTA_1 = 150
-    X_DELTA_2 = -150
-    X_DELTA_3 = -300
+    X_DELTA_0 = 200
+    X_DELTA_1 = 100
+    X_DELTA_2 = -100
+    X_DELTA_3 = -200
 
+    hit_count=[0]*OMRON_DATA_LIST
     t_delta=[0.0]*OMRON_DATA_LIST		# holds the difference between threshold and actual
     x_delta=[0.0]*4                             # holds the sums of differences along the x axis
     p_delta=[0.0]*4                             # holds the sums of differences along multiplied by position
-
-    if DEBUG:
-        print 'Finding position of person'
+    h_delta=[0]*4
 
     for i in range(0,OMRON_DATA_LIST):
         if (t_array[i] > room+TEMPMARGIN and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
             t_delta[i] = t_array[i] - room+TEMPMARGIN
-
+            hit_count[i] += 1
+            
     if DEBUG:
         print 'Temperature deltas'
         print_temps(t_delta)
+        print 'Hit count = '+str(hit_count)
+
+    HIT_WEIGHT_PERCENT = 0.1
+# use hit counts as a weighting factor: 1 hit = x percent increase
+    h_delta[0] = hit_count[12]+hit_count[13]+hit_count[14]+hit_count[15] # add up the far left column
+    h_delta[1] = hit_count[8]+hit_count[9]+hit_count[10]+hit_count[11] 
+    h_delta[2] = hit_count[4]+hit_count[5]+hit_count[6]+hit_count[7] 
+    h_delta[3] = hit_count[0]+hit_count[1]+hit_count[2]+hit_count[3] 
+
+    if DEBUG:
+        print 'hit count delta: ',
+        print h_delta
         print ''
 
-    x_delta[0] = t_delta[0]+t_delta[4]+t_delta[8]+t_delta[12]
-    x_delta[1] = t_delta[1]+t_delta[5]+t_delta[9]+t_delta[13]
-    x_delta[2] = t_delta[2]+t_delta[6]+t_delta[10]+t_delta[14]
-    x_delta[3] = t_delta[3]+t_delta[7]+t_delta[11]+t_delta[15]
+    x_delta[0] = (t_delta[12]+t_delta[13]+t_delta[14]+t_delta[15])*(1+(h_delta[0]*HIT_WEIGHT_PERCENT))
+    x_delta[1] = (t_delta[8]+t_delta[9]+t_delta[10]+t_delta[11])*(1+(h_delta[1]*HIT_WEIGHT_PERCENT))          
+    x_delta[2] = (t_delta[4]+t_delta[5]+t_delta[6]+t_delta[7])*(1+(h_delta[2]*HIT_WEIGHT_PERCENT))
+    x_delta[3] = (t_delta[0]+t_delta[1]+t_delta[2]+t_delta[3])*(1+(h_delta[3]*HIT_WEIGHT_PERCENT))            # add up the far right column
 
-#    if DEBUG:
-#        print 'x axis delta sums: ',
-#        print x_delta
-#        print ''
+    if DEBUG:
+        print 'x axis delta sums: ',
+        print x_delta
+        print ''
 
-    p_delta[0] = x_delta[0]*(s_position+X_DELTA_0)
+    p_delta[0] = x_delta[0]*(s_position+X_DELTA_0)                      # convert the far left column to a position relative to the last position
     p_delta[1] = x_delta[1]*(s_position+X_DELTA_1)
     p_delta[2] = x_delta[2]*(s_position+X_DELTA_2)
-    p_delta[3] = x_delta[3]*(s_position+X_DELTA_3)
+    p_delta[3] = x_delta[3]*(s_position+X_DELTA_3)                      # far right
 
-#    if DEBUG:
-#        print 'p delta multiplicands: ',
-#        print p_delta
-#        print ''
+    if DEBUG:
+        print 'p delta multiplicands: ',
+        print p_delta
+        print ''
 
-    person_position = (p_delta[0]+p_delta[1]+p_delta[2]+p_delta[3])/(x_delta[0]+x_delta[1]+x_delta[2]+x_delta[3])
+    person_position = (p_delta[0]+p_delta[1]+p_delta[2]+p_delta[3])/(x_delta[0]+x_delta[1]+x_delta[2]+x_delta[3])       # estimate the location on x-axis
 
 # make sure we don't go out of bounds
     if person_position == 0:
@@ -351,23 +363,27 @@ def person_position(room, t_array, s_position):
     return person_position
             
 def person_detector(room, t_array):
-    PERSON_TEMP_SUM_THRESHOLD = 5
-    if DEBUG:
-        print 'Finding person'
 
+    PERSON_TEMP_SUM_THRESHOLD = 3
     t_sum = 0
+    hit_count = 0
+
+    if DEBUG:
+        print 'person temp threshold = '+str(room+TEMPMARGIN)
+
     for i in range(0,OMRON_DATA_LIST):
         if (t_array[i] > room+TEMPMARGIN and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
-            t_sum = t_array[i] - room+TEMPMARGIN
+            t_sum += t_array[i] - room+TEMPMARGIN
+            hit_count += 1
 
     if DEBUG:
         print 'Temperature sum = '+str(t_sum)
+        print 'Hit count = '+str(hit_count)
 
-    if t_sum > PERSON_TEMP_SUM_THRESHOLD:
+    if hit_count > 1 and t_sum > PERSON_TEMP_SUM_THRESHOLD:
         return True
     else:
         return False
-
 
 ###############################
 #
@@ -501,8 +517,10 @@ try:
 
 #    pid_controller=PID(1.0,0.1,0.1)     # PID controller is the feedback loop controller for person following
     pid_controller=PID(1.0,0.1,0.1)     # PID controller is the feedback loop controller for person following
-    SETTLE_TIME = 1.5                   # the time in seconds to allow the temperatures to settle once a person is found and the head has moved
-    MINIMUM_ERROR_GRANULARITY = 100     # the number of microseconds - if the PID error is less than this, the head will stop moving
+    SETTLE_TIME = 1.0                   # the time in seconds to allow the temperatures to settle once a person is found and the head has moved
+    MINIMUM_ERROR_GRANULARITY = 50     # the number of microseconds - if the PID error is less than this, the head will stop moving
+    previous_pid_error = 0
+
 #############################
 # Main while loop
 #############################
@@ -628,7 +646,10 @@ try:
                         print ' PID Error: '+str(pid_error)
 
 # make the robot turn its head to the person
+# if previous error is the same absolute value as the current error, then we are oscillating - stop it
+#                    if abs(pid_error) > MINIMUM_ERROR_GRANULARITY and abs(pid_error) != abs(previous_pid_error):
                     if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
+                        previous_pid_error = pid_error
                         servo_position += pid_error
                         servo_position = set_servo_to_position(servo_position)
                         time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
