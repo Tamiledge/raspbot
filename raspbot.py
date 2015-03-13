@@ -1,19 +1,19 @@
 #! /usr/bin/python
-
-# A Python command line tool for a badge leash robot
+"""
+# A Python command line tool for a robot based on the Raspberry Pi computer
 # By Greg Griffes http://yottametric.com
 # GNU GPL V3 
 
 # !!!!!!!!!!!!!!!!!
-# remember to run this as root "sudo ./raspbot" so that DMA can be used for the servo
+# remember to run this as root "sudo ./raspbot" so that DMA can be used
+# for the servo
 # !!!!!!!!!!!!!!!!!
 
 # Jan 2015
-
+"""
 import smbus
 import sys
 import getopt
-import time 
 import pigpio
 import time
 from datetime import datetime
@@ -21,14 +21,17 @@ from webcolors import *
 import pygame
 from pygame.locals import *
 import random
-from omron_src import *		# contains omron functions
+from omron_src import *     # contains omron functions
 
-#The recipe gives simple implementation of a Discrete Proportional-Integral-Derivative (PID) controller. PID controller gives output value for error between desired reference input and measurement feedback to minimize error value.
+#The recipe gives simple implementation of a Discrete Proportional-Integral-
+# Derivative (PID) controller. PID controller gives output value for error
+# between desired reference input and measurement feedback to minimize error
+# value.
 #More information: http://en.wikipedia.org/wiki/PID_controller
 #
 #cnr437@gmail.com
 #
-#######	Example	#########
+####### Example #########
 #
 #p=PID(3.0,0.4,1.2)
 #p.setPoint(5.0)
@@ -39,99 +42,99 @@ from omron_src import *		# contains omron functions
 
 
 class PID:
-	"""
-	Discrete PID control
-	"""
+    """
+    Discrete PID control
+    """
 
-	def __init__(self, P=2.0, I=0.0, D=1.0, Derivator=0, Integrator=0, Integrator_max=500, Integrator_min=-500):
+    def __init__(self, P=2.0, I=0.0, D=1.0, Derivator=0, Integrator=0, Integrator_max=500, Integrator_min=-500):
 
-		self.Kp=P
-		self.Ki=I
-		self.Kd=D
-		self.Derivator=Derivator
-		self.Integrator=Integrator
-		self.Integrator_max=Integrator_max
-		self.Integrator_min=Integrator_min
+        self.Kp=P
+        self.Ki=I
+        self.Kd=D
+        self.Derivator=Derivator
+        self.Integrator=Integrator
+        self.Integrator_max=Integrator_max
+        self.Integrator_min=Integrator_min
 
-		self.set_point=0.0
-		self.error=0.0
+        self.set_point=0.0
+        self.error=0.0
 
-	def update(self,current_value):
-		"""
-		Calculate PID output value for given reference input and feedback
-		"""
+    def update(self,current_value):
+        """
+        Calculate PID output value for given reference input and feedback
+        """
 
-		self.error = self.set_point - current_value
+        self.error = self.set_point - current_value
 
-		self.P_value = self.Kp * self.error
-		self.D_value = self.Kd * ( self.error - self.Derivator)
-		self.Derivator = self.error
+        self.P_value = self.Kp * self.error
+        self.D_value = self.Kd * ( self.error - self.Derivator)
+        self.Derivator = self.error
 
-		self.Integrator = self.Integrator + self.error
+        self.Integrator = self.Integrator + self.error
 
-		if self.Integrator > self.Integrator_max:
-			self.Integrator = self.Integrator_max
-		elif self.Integrator < self.Integrator_min:
-			self.Integrator = self.Integrator_min
+        if self.Integrator > self.Integrator_max:
+            self.Integrator = self.Integrator_max
+        elif self.Integrator < self.Integrator_min:
+            self.Integrator = self.Integrator_min
 
-		self.I_value = self.Integrator * self.Ki
+        self.I_value = self.Integrator * self.Ki
 
-		PID = self.P_value + self.I_value + self.D_value
+        PID = self.P_value + self.I_value + self.D_value
 
-		return PID
+        return PID
 
-	def setPoint(self,set_point):
-		"""
-		Initilize the setpoint of PID
-		"""
-		self.set_point = set_point
-		self.Integrator=0
-		self.Derivator=0
+    def setPoint(self,set_point):
+        """
+        Initilize the setpoint of PID
+        """
+        self.set_point = set_point
+        self.Integrator=0
+        self.Derivator=0
 
-	def setIntegrator(self, Integrator):
-		self.Integrator = Integrator
+    def setIntegrator(self, Integrator):
+        self.Integrator = Integrator
 
-	def setDerivator(self, Derivator):
-		self.Derivator = Derivator
+    def setDerivator(self, Derivator):
+        self.Derivator = Derivator
 
-	def setKp(self,P):
-		self.Kp=P
+    def setKp(self,P):
+        self.Kp=P
 
-	def setKi(self,I):
-		self.Ki=I
+    def setKi(self,I):
+        self.Ki=I
 
-	def setKd(self,D):
-		self.Kd=D
+    def setKd(self,D):
+        self.Kd=D
 
-	def getPoint(self):
-		return self.set_point
+    def getPoint(self):
+        return self.set_point
 
-	def getError(self):
-		return self.error
+    def getError(self):
+        return self.error
 
-	def getIntegrator(self):
-		return self.Integrator
+    def getIntegrator(self):
+        return self.Integrator
 
-	def getDerivator(self):
-		return self.Derivator
+    def getDerivator(self):
+        return self.Derivator
 
 # Constants
-RASPI_I2C_CHANNEL=1		# the /dev/i2c device
-OMRON_1=0x0a 			# 7 bit I2C address of Omron MEMS Temp Sensor D6T-44L
-OMRON_BUFFER_LENGTH=35		# Omron data buffer size
-OMRON_DATA_LIST=16		# Omron data array - sixteen 16 bit words
-MAX_VOLUME=1.0			# maximum speaker volume factor for pygame.mixer
-DEGREE_UNIT='F'			# F = Farenheit, C=Celcius
-MEASUREMENT_WAIT_PERIOD=0.3     # time between Omron measurements
-SERVO=1				# set this to 1 if the servo motor is wired up
-SERVO_GPIO_PIN = 11		# GPIO number (GPIO 11 aka. SCLK)
-DEBUG=0				# set this to 1 to see debug messages on monitor
-SCREEN_DIMENSIONS = [400, 600]	# setup the IR color window [0]= width [1]= height
-MIN_TEMP = 0			# minimum expected temperature in Fahrenheit
-MAX_TEMP = 200			# minimum expected temperature in Fahrenheit
+RASPI_I2C_CHANNEL = 1     # the /dev/i2c device
+OMRON_1 = 0x0a            # 7 bit I2C address of Omron MEMS Temp Sensor D6T-44L
+OMRON_BUFFER_LENGTH = 35      # Omron data buffer size
+OMRON_DATA_LIST = 16      # Omron data array - sixteen 16 bit words
+MAX_VOLUME = 1.0          # maximum speaker volume factor for pygame.mixer
+DEGREE_UNIT = 'F'         # F = Farenheit, C=Celcius
+MEASUREMENT_WAIT_PERIOD = 0.3     # time between Omron measurements
+SERVO = 1             # set this to 1 if the servo motor is wired up
+SERVO_GPIO_PIN = 11     # GPIO number (GPIO 11 aka. SCLK)
+DEBUG = 0             # set this to 1 to see debug messages on monitor
+SCREEN_DIMENSIONS = [400, 600]  # setup the IR color window [0]= width [1]= height
+MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
+MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
 ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
-TEMPMARGIN=5			# number of degrees F greater than room temp to detect a person
+TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
 PERSON_TEMP = 77                # usually the temperature threshold of a person at about 3 feet
 
 # Servo positions
@@ -161,21 +164,27 @@ LOGFILE_NAME = 'Raspbot_logfile.txt'
 import RPi.GPIO as GPIO
 GPIO.setwarnings(False)         # if true, we get warnings about DMA channel in use
 GPIO.setmode(GPIO.BOARD)
-GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
-from RPIO import PWM		# for the servo motor
+GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
+from RPIO import PWM        # for the servo motor
 
-#hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
-hello_audio = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3"
-after_hello_audio = "snd/20150201_zoe-boeing.mp3", "snd/20150201_chloe-boeing.mp3",  "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-yippee1.mp3"
-#after_hello_audio = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
-byebye_audio = "snd/20150201_zoe-goodbye1.mp3", "snd/20150201_chloe-goodbye1.mp3"
-after_byebye_audio = "snd/20150201_chloe-cry1.mp3", "snd/20150201_chloe-loveu.mp3", "snd/20150201_zoe-loveu.mp3"
+#HELLO_AUDIO = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
+HELLO_AUDIO = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3"
+AFTER_HELLO_AUDIO = "snd/20150201_zoe-boeing.mp3", "snd/20150201_chloe-boeing.mp3",  "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-yippee1.mp3"
+#AFTER_HELLO_AUDIO = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
+BYEBYE_AUDIO = "snd/20150201_zoe-goodbye1.mp3", "snd/20150201_chloe-goodbye1.mp3"
+AFTER_BYEBYE_AUDIO = "snd/20150201_chloe-cry1.mp3", "snd/20150201_chloe-loveu.mp3", "snd/20150201_zoe-loveu.mp3"
 
 # function to get the average value of a list
-def avg(l):
-    return sum(l, 0.0) / len(l)
+def avg(incoming_list):
+    """
+    Calculates the average value of a list
+    """
+    return sum(incoming_list, 0.0) / len(incoming_list)
 
 def play_sound(volume, message):
+    """
+    Play an mp3 file
+    """
     pygame.mixer.music.set_volume(volume)         
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
@@ -183,7 +192,9 @@ def play_sound(volume, message):
 #      continue
 
 def print_temps(temp_list):
-# Display each element's temperature in F
+    """
+    Display each element's temperature in F
+    """
     print "%.1f"%temp_list[12]+' ',
     print "%.1f"%temp_list[8]+' ',
     print "%.1f"%temp_list[4]+' ',
@@ -207,6 +218,9 @@ def print_temps(temp_list):
 
 # function to calculate color from temperature
 def fahrenheit_to_rgb(maxVal, minVal, actual):
+    """
+    Convert fahrenheit temperature to RGB color values
+    """
     midVal = (maxVal - minVal)/2
     intR = 0
     intG = 0
@@ -241,15 +255,24 @@ def fahrenheit_to_rgb(maxVal, minVal, actual):
 
 
 def fahrenheit_to_kelvin(fahrenheit):
+    """
+    Convert fahrenheit to kelvin
+    """
     kelvin = ((5*(fahrenheit - 32))/9) + 273
     if DEBUG:
         print "%.1f"%fahrenheit+' F = '+"%.1f"%kelvin+' K'
     return kelvin
 
 def celsius_to_kelvin(celsius):
+    """
+    Convert celsius to kelvin
+    """
     return (celsius + 273)
 
 def crash_and_burn(msg, pygame, servo, logfile):
+    """
+    Something bad happend; quit the program
+    """
     if DEBUG:
         print msg
     if SERVO:
@@ -260,6 +283,9 @@ def crash_and_burn(msg, pygame, servo, logfile):
     sys.exit()
 
 def set_servo_to_position (new_position):    # position across a line from 500 to 2500 points
+    """
+    Moves the servo to a new position
+    """
 
     # put servo in roaming mode
     if SERVO:
@@ -287,6 +313,9 @@ def set_servo_to_position (new_position):    # position across a line from 500 t
         return final_position
 
 def person_position(room, t_array, s_position):
+    """
+    Algorithm to calculate the position of a person based on sensor data
+    """
 
     X_DELTA_0 = 200
     X_DELTA_1 = 100
@@ -294,7 +323,7 @@ def person_position(room, t_array, s_position):
     X_DELTA_3 = -200
 
     hit_count=[0]*OMRON_DATA_LIST
-    t_delta=[0.0]*OMRON_DATA_LIST		# holds the difference between threshold and actual
+    t_delta=[0.0]*OMRON_DATA_LIST       # holds the difference between threshold and actual
     x_delta=[0.0]*4                             # holds the sums of differences along the x axis
     p_delta=[0.0]*4                             # holds the sums of differences along multiplied by position
     h_delta=[0]*4
@@ -363,6 +392,9 @@ def person_position(room, t_array, s_position):
     return person_position
             
 def person_detector(room, t_array):
+    """
+    Used to detect a persons presence using the sensor data
+    """
 
     PERSON_TEMP_SUM_THRESHOLD = 3
     t_sum = 0
@@ -393,20 +425,20 @@ def person_detector(room, t_array):
 
 # Handle command line arguments
 if "-debug" in sys.argv:
-    DEBUG=1				# set this to 1 to see debug messages on monitor
+    DEBUG=1             # set this to 1 to see debug messages on monitor
 if "-noservo" in sys.argv:
-    SERVO=0				# assume using servo is default
+    SERVO=0             # assume using servo is default
 if "-roam" in sys.argv:
-    ROAM=1				# set this to 1 to allow robot to roam looking for a person
+    ROAM=1              # set this to 1 to allow robot to roam looking for a person
 
 if "-help" in sys.argv:
     print '-debug -noservo -roam -h -help'
     sys.exit()
 
 # Initialize variables
-temperature_array=[0.0]*OMRON_DATA_LIST		# holds the recently measured temperature
-temperature_previous=[0.0]*OMRON_DATA_LIST	# keeps track of the previous values
-temperature_moving_ave=[0.0]*OMRON_DATA_LIST	# moving average of temperature
+temperature_array=[0.0]*OMRON_DATA_LIST     # holds the recently measured temperature
+temperature_previous=[0.0]*OMRON_DATA_LIST  # keeps track of the previous values
+temperature_moving_ave=[0.0]*OMRON_DATA_LIST    # moving average of temperature
 left_far=[0.0]*4
 left_ctr=[0.0]*4
 right_ctr=[0.0]*4
@@ -416,8 +448,8 @@ fatal_error = 0
 retries=0
 played_hello=0
 played_byebye=0
-quadrant=[Rect]*OMRON_DATA_LIST		# quadrant of the display (x, y, width, height)
-center=[(0,0)]*OMRON_DATA_LIST		# center of each quadrant
+quadrant=[Rect]*OMRON_DATA_LIST     # quadrant of the display (x, y, width, height)
+center=[(0,0)]*OMRON_DATA_LIST      # center of each quadrant
 px=[0]*4
 py=[0]*4
 omron_error_count = 0
@@ -463,7 +495,7 @@ try:
 # Initialize i2c bus address
     logfile.write('\r\nInitializing smbus at '+str(datetime.now()))
     i2c_bus = smbus.SMBus(1)
-    time.sleep(0.05)				# Wait a short time
+    time.sleep(0.05)                # Wait a short time
 
 # make some space
     print ''
@@ -507,7 +539,7 @@ try:
     print 'Looking for a person'
     logfile.write('\r\nLooking for a person at '+str(datetime.now()))
 
-    person = 0				# initialize the person tracker
+    person = 0              # initialize the person tracker
     person_existed_last_time = 0
     first_time = 1
     burn_hazard = 0
@@ -524,8 +556,8 @@ try:
 #############################
 # Main while loop
 #############################
-    while True:			        # The main loop
-        while True: 				# do this loop until a person shows up
+    while True:                 # The main loop
+        while True:                 # do this loop until a person shows up
          
             time.sleep(MEASUREMENT_WAIT_PERIOD)
 
@@ -573,8 +605,8 @@ try:
                 break
 
             for i in range(0,OMRON_DATA_LIST):
-                list = [temperature_array[i], temperature_previous[i], temperature_moving_ave[i]]
-                temperature_moving_ave[i] = avg(list)
+                temp_list = [temperature_array[i], temperature_previous[i], temperature_moving_ave[i]]
+                temperature_moving_ave[i] = avg(temp_list)
 
 # Display each element's temperature in F
             if DEBUG:
@@ -709,7 +741,7 @@ try:
             break
 
         if person == 1:
-            if person_existed_last_time == 0:			# person detected for the first time
+            if person_existed_last_time == 0:           # person detected for the first time
 
                 screen.fill(name_to_rgb('white'), message_area)
                 text = font.render("Hello!", 1, name_to_rgb('red'))
@@ -727,16 +759,16 @@ try:
 #               if DEBUG:
 #                  print 'Servo: Facing Person'
 #               servo.set_servo(SERVO_GPIO_PIN, CCW_HALF)
-#               time.sleep(0.5)		    # Wait for the temps to normalize
+#               time.sleep(0.5)         # Wait for the temps to normalize
 
 # Play "hello" sound effect
-                hello_message = random.choice(hello_audio)         
+                hello_message = random.choice(HELLO_AUDIO)         
                 play_sound(MAX_VOLUME, hello_message)
                 person_existed_last_time = 1
                 played_hello =1
 
         else:
-            if person_existed_last_time == 1:			# person moved away from the device
+            if person_existed_last_time == 1:           # person moved away from the device
 
                 screen.fill(name_to_rgb('white'), message_area)
                 text = font.render("Bye bye!", 1, name_to_rgb('red'))
@@ -754,22 +786,22 @@ try:
 #               if DEBUG:
 #                  print 'Servo: Facing AWAY'
 #               servo.set_servo(SERVO_GPIO_PIN, CW_HALF)
-#               time.sleep(0.5)		    # Wait for the temps to normalize
+#               time.sleep(0.5)         # Wait for the temps to normalize
 
 # Play "bye bye" sound effect
-                byebye_message = random.choice(byebye_audio)
+                byebye_message = random.choice(BYEBYE_AUDIO)
                 play_sound(MAX_VOLUME, byebye_message)
                 played_byebye =1
 
                 person_existed_last_time = 0
 
 #      if played_hello:
-#         after_hello_message = random.choice(after_hello_audio)         
+#         after_hello_message = random.choice(AFTER_HELLO_AUDIO)         
 #         play_sound(MAX_VOLUME, after_hello_message)
 #         played_hello=0
 
 #      if played_byebye:
-#         after_byebye_message = random.choice(after_byebye_audio)
+#         after_byebye_message = random.choice(AFTER_BYEBYE_AUDIO)
 #         play_sound(MAX_VOLUME, after_byebye_message)
 #         played_byebye=0
 
