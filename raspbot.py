@@ -22,6 +22,8 @@ import pygame
 from pygame.locals import *
 import random
 from omron_src import *     # contains omron functions
+import urllib, pycurl, os   # needed for text to speech
+import ping, socket
 
 #The recipe gives simple implementation of a Discrete Proportional-Integral-
 # Derivative (PID) controller. PID controller gives output value for error
@@ -40,13 +42,11 @@ from omron_src import *     # contains omron functions
 #
 #
 
-
 class PID:
     """
     Discrete PID control
     """
-
-    def __init__(self, P=2.0, I=0.0, D=1.0, Derivator=0, Integrator=0, Integrator_max=500, Integrator_min=-500):
+    def __init__(self, P = 1.0, I = 0.0, D = 1.0, Derivator = 0, Integrator = 0, Integrator_max = 500, Integrator_min = -500):
 
         self.Kp=P
         self.Ki=I
@@ -135,19 +135,16 @@ MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
 ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
-PERSON_TEMP = 77                # usually the temperature threshold of a person at about 3 feet
+PERSON_TEMP_THRESHOLD = 81      # degrees fahrenheit
 
 # Servo positions
-FORWARD = 1500                  # Facing straign forward
-CW_FULL = 500                   # 90 degrees clockwise from FORWARD
-CW_HALF = 1000                  # 45 degrees clockwise from FORWARD
-CCW_FULL = 2500                 # 90 degrees Counter clockwise from FORWARD
-CCW_HALF = 2000                 # 45 degrees Counter clockwise from FORWARD
+CENTER = 1500                  # Facing straign forward
 POSVECT_MIN = 0                 # POSVECT is the vector position of the robot head
 POSVECT_MAX = 2000              # POSVECT is a value between MIN and MAX where MIN is full clockwise and MAX is full CCW
-POSVECT_OFFSET = 500            # When POSVECT is added to the offset, the number can be used to position the servo
+POSVECT_OFFSET = 600            # When POSVECT is added to the offset, the number can be used to position the servo
 
-MIN_SERVO_POSITION = 500
+MIN_SERVO_POSITION = 600
+CTR_SERVO_POSITION = 1500
 MAX_SERVO_POSITION = 2500
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 
@@ -174,6 +171,8 @@ AFTER_HELLO_AUDIO = "snd/20150201_zoe-boeing.mp3", "snd/20150201_chloe-boeing.mp
 BYEBYE_AUDIO = "snd/20150201_zoe-goodbye1.mp3", "snd/20150201_chloe-goodbye1.mp3"
 AFTER_BYEBYE_AUDIO = "snd/20150201_chloe-cry1.mp3", "snd/20150201_chloe-loveu.mp3", "snd/20150201_zoe-loveu.mp3"
 
+CONNECTED = 0           # true if connected to the internet
+
 # function to get the average value of a list
 def avg(incoming_list):
     """
@@ -188,8 +187,8 @@ def play_sound(volume, message):
     pygame.mixer.music.set_volume(volume)         
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
-#   while pygame.mixer.music.get_busy() == True:
-#      continue
+    while pygame.mixer.music.get_busy() == True:
+        continue
 
 def print_temps(temp_list):
     """
@@ -282,12 +281,11 @@ def crash_and_burn(msg, pygame, servo, logfile):
     pygame.quit()
     sys.exit()
 
-def set_servo_to_position (new_position):    # position across a line from 500 to 2500 points
+def set_servo_to_position (new_position):    # position across a line from 600 to 2500 points
     """
     Moves the servo to a new position
     """
 
-    # put servo in roaming mode
     if SERVO:
     # make sure we don't go out of bounds
         if new_position == 0:
@@ -329,8 +327,8 @@ def person_position(room, t_array, s_position):
     h_delta=[0]*4
 
     for i in range(0,OMRON_DATA_LIST):
-        if (t_array[i] > room+TEMPMARGIN and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
-            t_delta[i] = t_array[i] - room+TEMPMARGIN
+        if (t_array[i] > PERSON_TEMP_THRESHOLD and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
+            t_delta[i] = t_array[i] - PERSON_TEMP_THRESHOLD
             hit_count[i] += 1
             
     if DEBUG:
@@ -374,11 +372,11 @@ def person_position(room, t_array, s_position):
 
 # make sure we don't go out of bounds
     if person_position == 0:
-        person_position = 1500
-    elif person_position < 500:
-        person_position = 500
-    elif person_position > 2500:
-        person_position = 2500
+        person_position = CENTER
+    elif person_position < MIN_SERVO_POSITION:
+        person_position = MIN_SERVO_POSITION
+    elif person_position > MAX_SERVO_POSITION:
+        person_position = MAX_SERVO_POSITION
 
 # make sure the result has a granularity of 10us
     if (person_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
@@ -395,17 +393,17 @@ def person_detector(room, t_array):
     """
     Used to detect a persons presence using the sensor data
     """
-
     PERSON_TEMP_SUM_THRESHOLD = 3
     t_sum = 0
     hit_count = 0
 
     if DEBUG:
-        print 'person temp threshold = '+str(room+TEMPMARGIN)
+        print 'person temp threshold = '+str(PERSON_TEMP_THRESHOLD)
 
     for i in range(0,OMRON_DATA_LIST):
-        if (t_array[i] > room+TEMPMARGIN and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
-            t_sum += t_array[i] - room+TEMPMARGIN
+#        if (t_array[i] > room+TEMPMARGIN and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
+        if (t_array[i] > PERSON_TEMP_THRESHOLD and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
+            t_sum += t_array[i] - PERSON_TEMP_THRESHOLD
             hit_count += 1
 
     if DEBUG:
@@ -416,6 +414,39 @@ def person_detector(room, t_array):
         return True
     else:
         return False
+
+def connected_to_internet():
+    try:
+        ping.verbose_ping('www.google.com', count = 3)
+        if DEBUG:
+            print "Connected to internet"
+        return 1
+    except:
+        if DEBUG:
+            print "Not connected to internet"
+        return 0
+
+def downloadFile(url, fileName):
+    fp = open(fileName, "wb")
+    curl = pycurl.Curl()
+    curl.setopt(pycurl.URL, url)
+    curl.setopt(pycurl.WRITEDATA, fp)
+    curl.perform()
+    curl.close()
+    fp.close()
+
+def getGoogleSpeechURL(phrase):
+    googleTranslateURL = "http://translate.google.com/translate_tts?tl=en&"
+    parameters = {'q': phrase}
+    data = urllib.urlencode(parameters)
+    googleTranslateURL = "%s%s" % (googleTranslateURL,data)
+    return googleTranslateURL
+
+def speakSpeechFromText(phrase, output_file_name):
+    googleSpeechURL = getGoogleSpeechURL(phrase)
+    downloadFile(googleSpeechURL, output_file_name)
+#    pygame.mixer.music.load(output_file_name)
+#    pygame.mixer.music.play()
 
 ###############################
 #
@@ -454,7 +485,7 @@ px=[0]*4
 py=[0]*4
 omron_error_count = 0
 omron_read_count = 0
-servo_position = FORWARD                # initialize the servo to face directly forward
+servo_position = CENTER                 # initialize the servo to face directly forward
 servo_direction = SERVO_CUR_DIR_CCW     # initially start moving the servo CCW
 
 # Open log file
@@ -502,7 +533,13 @@ try:
     if DEBUG:
         print 'DEBUG switch is on'
     if SERVO:
-        print 'SERVO switch is on'
+# Initialize servo position
+        if DEBUG:
+            print 'Servo: initializing servo'
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
+        servo = PWM.Servo()
+        servo.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
     else:
         print 'SERVO is off'
 
@@ -524,15 +561,6 @@ try:
         crash_msg = '\r\nI2C sensor not found!'
         crash_and_burn(crash_msg, pygame, servo, logfile)
 
-# Initialize servo position
-    if SERVO:
-        if DEBUG:
-            print 'Servo: initializing servo'
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
-        servo = PWM.Servo()
-        servo.set_servo(SERVO_GPIO_PIN, servo_position)
-
 # initialze the music player
     pygame.mixer.init()
 
@@ -552,6 +580,28 @@ try:
     SETTLE_TIME = 1.0                   # the time in seconds to allow the temperatures to settle once a person is found and the head has moved
     MINIMUM_ERROR_GRANULARITY = 50     # the number of microseconds - if the PID error is less than this, the head will stop moving
     previous_pid_error = 0
+
+    CONNECTED = connected_to_internet
+    HELLO_FILE_NAME = "hello_file.mp3"
+    GOODBYE_FILE_NAME = "byebye_file.mp3"
+    BADGE_FILE_NAME = "badge_file.mp3"
+    MOVE_FILE_NAME = "move_file.mp3"
+    BORED_FILE_NAME = "bored_file.mp3"
+    BURN_FILE_NAME = "burn_file.mp3"
+    
+    if CONNECTED:
+        speakSpeechFromText("Yeay,,,,,, we are connected to the Internet!", "intro.mp3")
+        logfile.write('\r\nConnected to the Internet')
+        play_sound(MAX_VOLUME, "intro.mp3")
+        speakSpeechFromText("Hello!", HELLO_FILE_NAME)
+        speakSpeechFromText("Good bye", GOODBYE_FILE_NAME)
+        speakSpeechFromText("STOP!,,,, Don't forget your badge!", BADGE_FILE_NAME)
+        speakSpeechFromText("Yo!", MOVE_FILE_NAME)
+        speakSpeechFromText("I'm so bored...", BORED_FILE_NAME)
+        speakSpeechFromText("WARNING: Somethings very HOT! Don't get burned!", BURN_FILE_NAME)
+        
+    else:
+        logfile.write('\r\nNOT connected to the Internet')        
 
 #############################
 # Main while loop
@@ -622,7 +672,7 @@ try:
 # This fills each little array square with a background color that matches the temp
                 screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
 # Display temp value
-                if temperature_array[i] > room_temp+TEMPMARGIN:
+                if temperature_array[i] > PERSON_TEMP_THRESHOLD:
                     text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('red'))
                 else:
                     text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('navy'))
@@ -651,6 +701,10 @@ try:
                 screen.blit(text, textpos)
 # update the screen
                 pygame.display.update()
+                play_sound(MAX_VOLUME, BURN_FILE_NAME)
+                if CONNECTED:
+                    speakSpeechFromText("The temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
+                    play_sound(MAX_VOLUME, "mtemp.mp3")
 
                 burn_hazard = 1
                 break
@@ -679,11 +733,14 @@ try:
 
 # make the robot turn its head to the person
 # if previous error is the same absolute value as the current error, then we are oscillating - stop it
-#                    if abs(pid_error) > MINIMUM_ERROR_GRANULARITY and abs(pid_error) != abs(previous_pid_error):
                     if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
                         previous_pid_error = pid_error
                         servo_position += pid_error
                         servo_position = set_servo_to_position(servo_position)
+                        play_sound(MAX_VOLUME, MOVE_FILE_NAME)
+                        if (pid_error < -100):
+                            play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+
                         time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
 
                 person = 1
@@ -712,10 +769,12 @@ try:
                     if DEBUG:
                         print 'CCW limit hit, changing direction'
                     servo_direction = SERVO_CUR_DIR_CW
+                    #play_sound(MAX_VOLUME, BORED_FILE_NAME)
                 if (servo_position <= SERVO_LIMIT_CW):
                     if DEBUG:
                         print 'CW limit hit, changing direction'
                     servo_direction = SERVO_CUR_DIR_CCW
+                    #play_sound(MAX_VOLUME, BORED_FILE_NAME)
                
                 if DEBUG:
                     print 'Servo: Roaming. Position: '+str(servo_position),
@@ -762,8 +821,16 @@ try:
 #               time.sleep(0.5)         # Wait for the temps to normalize
 
 # Play "hello" sound effect
-                hello_message = random.choice(HELLO_AUDIO)         
-                play_sound(MAX_VOLUME, hello_message)
+                play_sound(MAX_VOLUME, HELLO_FILE_NAME)
+
+                if CONNECTED:
+                    speakSpeechFromText("The room temperature is "+"%.1f"%room_temp+" degrees fahrenheit", "rtemp.mp3")
+                    play_sound(MAX_VOLUME, "rtemp.mp3")
+
+                    #speakSpeechFromText("and your temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
+                    #play_sound(MAX_VOLUME, "mtemp.mp3")
+                    
+
                 person_existed_last_time = 1
                 played_hello =1
 
@@ -789,10 +856,11 @@ try:
 #               time.sleep(0.5)         # Wait for the temps to normalize
 
 # Play "bye bye" sound effect
-                byebye_message = random.choice(BYEBYE_AUDIO)
-                play_sound(MAX_VOLUME, byebye_message)
-                played_byebye =1
+                #byebye_message = random.choice(BYEBYE_FILE_NAME)
+                play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+                play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
 
+                played_byebye =1
                 person_existed_last_time = 0
 
 #      if played_hello:
