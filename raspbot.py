@@ -23,7 +23,6 @@ from pygame.locals import *
 import random
 from omron_src import *     # contains omron functions
 import urllib, pycurl, os   # needed for text to speech
-import ping, socket
 
 #The recipe gives simple implementation of a Discrete Proportional-Integral-
 # Derivative (PID) controller. PID controller gives output value for error
@@ -133,6 +132,7 @@ SCREEN_DIMENSIONS = [400, 600]  # setup the IR color window [0]= width [1]= heig
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
 MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
 ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
+RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
 PERSON_TEMP_THRESHOLD = 81      # degrees fahrenheit
@@ -145,7 +145,7 @@ POSVECT_OFFSET = 600            # When POSVECT is added to the offset, the numbe
 
 MIN_SERVO_POSITION = 600
 CTR_SERVO_POSITION = 1500
-MAX_SERVO_POSITION = 2500
+MAX_SERVO_POSITION = 2400
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 
 
@@ -153,7 +153,7 @@ SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_LIMIT_CW = MIN_SERVO_POSITION
 SERVO_CUR_DIR_CCW = 2
 SERVO_LIMIT_CCW = MAX_SERVO_POSITION
-SERVO_GRANULARTY = 50           # minimum granularity of the servo is 10us
+ROAMING_GRANULARTY = 50
 
 # Logfile
 LOGFILE_NAME = 'Raspbot_logfile.txt'
@@ -163,13 +163,6 @@ GPIO.setwarnings(False)         # if true, we get warnings about DMA channel in 
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
 from RPIO import PWM        # for the servo motor
-
-#HELLO_AUDIO = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3", "snd/20150201_chloe-higgg.mp3"
-HELLO_AUDIO = "snd/20150201_zoe-hello1.mp3", "snd/20150201_zoe-hello2.mp3"
-AFTER_HELLO_AUDIO = "snd/20150201_zoe-boeing.mp3", "snd/20150201_chloe-boeing.mp3",  "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-yippee1.mp3"
-#AFTER_HELLO_AUDIO = "snd/20150201_zoe-giggle1.mp3", "snd/20150201_zoe-boeing.mp3", "snd/20150201_zoe-candy1.mp3", "snd/20150201_zoe-dontworry1.mp3", "snd/20150201_chloe-boeing.mp3", "snd/20150201_chloe-candy1.mp3", "snd/20150201_chloe-dontworry1.mp3", "snd/20150201_chloe-dontworry2.mp3", "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-itslooking.mp3", "snd/20150201_chloe-yippee1.mp3"
-BYEBYE_AUDIO = "snd/20150201_zoe-goodbye1.mp3", "snd/20150201_chloe-goodbye1.mp3"
-AFTER_BYEBYE_AUDIO = "snd/20150201_chloe-cry1.mp3", "snd/20150201_chloe-loveu.mp3", "snd/20150201_zoe-loveu.mp3"
 
 CONNECTED = 0           # true if connected to the internet
 
@@ -194,26 +187,27 @@ def print_temps(temp_list):
     """
     Display each element's temperature in F
     """
-    print "%.1f"%temp_list[12]+' ',
-    print "%.1f"%temp_list[8]+' ',
-    print "%.1f"%temp_list[4]+' ',
-    print "%.1f"%temp_list[0]+' ',
-    print ''
-    print "%.1f"%temp_list[13]+' ',
-    print "%.1f"%temp_list[9]+' ',
-    print "%.1f"%temp_list[5]+' ',
-    print "%.1f"%temp_list[1]+' ',
-    print ''
-    print "%.1f"%temp_list[14]+' ',
-    print "%.1f"%temp_list[10]+' ',
-    print "%.1f"%temp_list[6]+' ',
-    print "%.1f"%temp_list[2]+' ',
-    print ''
-    print "%.1f"%temp_list[15]+' ',
-    print "%.1f"%temp_list[11]+' ',
-    print "%.1f"%temp_list[7]+' ',
-    print "%.1f"%temp_list[3]+' ',
-    print ''
+    if DEBUG:
+        print "%.1f"%temp_list[12]+' ',
+        print "%.1f"%temp_list[8]+' ',
+        print "%.1f"%temp_list[4]+' ',
+        print "%.1f"%temp_list[0]+' ',
+        print ''
+        print "%.1f"%temp_list[13]+' ',
+        print "%.1f"%temp_list[9]+' ',
+        print "%.1f"%temp_list[5]+' ',
+        print "%.1f"%temp_list[1]+' ',
+        print ''
+        print "%.1f"%temp_list[14]+' ',
+        print "%.1f"%temp_list[10]+' ',
+        print "%.1f"%temp_list[6]+' ',
+        print "%.1f"%temp_list[2]+' ',
+        print ''
+        print "%.1f"%temp_list[15]+' ',
+        print "%.1f"%temp_list[11]+' ',
+        print "%.1f"%temp_list[7]+' ',
+        print "%.1f"%temp_list[3]+' ',
+        print ''
 
 # function to calculate color from temperature
 def fahrenheit_to_rgb(maxVal, minVal, actual):
@@ -343,30 +337,30 @@ def person_position(room, t_array, s_position):
     h_delta[2] = hit_count[4]+hit_count[5]+hit_count[6]+hit_count[7] 
     h_delta[3] = hit_count[0]+hit_count[1]+hit_count[2]+hit_count[3] 
 
-    if DEBUG:
-        print 'hit count delta: ',
-        print h_delta
-        print ''
+##    if DEBUG:
+##        print 'hit count delta: ',
+##        print h_delta
+##        print ''
 
     x_delta[0] = (t_delta[12]+t_delta[13]+t_delta[14]+t_delta[15])*(1+(h_delta[0]*HIT_WEIGHT_PERCENT))
     x_delta[1] = (t_delta[8]+t_delta[9]+t_delta[10]+t_delta[11])*(1+(h_delta[1]*HIT_WEIGHT_PERCENT))          
     x_delta[2] = (t_delta[4]+t_delta[5]+t_delta[6]+t_delta[7])*(1+(h_delta[2]*HIT_WEIGHT_PERCENT))
     x_delta[3] = (t_delta[0]+t_delta[1]+t_delta[2]+t_delta[3])*(1+(h_delta[3]*HIT_WEIGHT_PERCENT))            # add up the far right column
 
-    if DEBUG:
-        print 'x axis delta sums: ',
-        print x_delta
-        print ''
+##    if DEBUG:
+##        print 'x axis delta sums: ',
+##        print x_delta
+##        print ''
 
     p_delta[0] = x_delta[0]*(s_position+X_DELTA_0)                      # convert the far left column to a position relative to the last position
     p_delta[1] = x_delta[1]*(s_position+X_DELTA_1)
     p_delta[2] = x_delta[2]*(s_position+X_DELTA_2)
     p_delta[3] = x_delta[3]*(s_position+X_DELTA_3)                      # far right
 
-    if DEBUG:
-        print 'p delta multiplicands: ',
-        print p_delta
-        print ''
+##    if DEBUG:
+##        print 'p delta multiplicands: ',
+##        print p_delta
+##        print ''
 
     person_position = (p_delta[0]+p_delta[1]+p_delta[2]+p_delta[3])/(x_delta[0]+x_delta[1]+x_delta[2]+x_delta[3])       # estimate the location on x-axis
 
@@ -410,21 +404,11 @@ def person_detector(room, t_array):
         print 'Temperature sum = '+str(t_sum)
         print 'Hit count = '+str(hit_count)
 
-    if hit_count > 1 and t_sum > PERSON_TEMP_SUM_THRESHOLD:
+#    if hit_count > 1 and t_sum > PERSON_TEMP_SUM_THRESHOLD:
+    if hit_count > 1:
         return True
     else:
         return False
-
-def connected_to_internet():
-    try:
-        ping.verbose_ping('www.google.com', count = 3)
-        if DEBUG:
-            print "Connected to internet"
-        return 1
-    except:
-        if DEBUG:
-            print "Not connected to internet"
-        return 0
 
 def downloadFile(url, fileName):
     fp = open(fileName, "wb")
@@ -462,8 +446,15 @@ if "-noservo" in sys.argv:
 if "-roam" in sys.argv:
     ROAM=1              # set this to 1 to allow robot to roam looking for a person
 
+if "-rand" in sys.argv:
+    RAND=1              # set this to 1 to allow robot to roam looking for a person
+
 if "-help" in sys.argv:
-    print '-debug -noservo -roam -h -help'
+    print 'IMPORTANT: run as superuser (sudo) to allow DMA access'
+    print '-debug:   print debug info to console'
+    print '-noservo: do not use the servo motor'
+    print '-roam:    when no person detected, turn head slowly 180 degrees'
+    print '-rand:    when roaming randomize the head movement'
     sys.exit()
 
 # Initialize variables
@@ -581,28 +572,32 @@ try:
     MINIMUM_ERROR_GRANULARITY = 50     # the number of microseconds - if the PID error is less than this, the head will stop moving
     previous_pid_error = 0
 
-    CONNECTED = connected_to_internet
-    HELLO_FILE_NAME = "hello_file.mp3"
-    GOODBYE_FILE_NAME = "byebye_file.mp3"
-    BADGE_FILE_NAME = "badge_file.mp3"
-    MOVE_FILE_NAME = "move_file.mp3"
-    BORED_FILE_NAME = "bored_file.mp3"
-    BURN_FILE_NAME = "burn_file.mp3"
-    
-    if CONNECTED:
-        speakSpeechFromText("Yeay,,,,,, we are connected to the Internet!", "intro.mp3")
-        logfile.write('\r\nConnected to the Internet')
-        play_sound(MAX_VOLUME, "intro.mp3")
-        speakSpeechFromText("Hello!", HELLO_FILE_NAME)
-        speakSpeechFromText("Good bye", GOODBYE_FILE_NAME)
-        speakSpeechFromText("STOP!,,,, Don't forget your badge!", BADGE_FILE_NAME)
-        speakSpeechFromText("Yo!", MOVE_FILE_NAME)
-        speakSpeechFromText("I'm so bored...", BORED_FILE_NAME)
-        speakSpeechFromText("WARNING: Somethings very HOT! Don't get burned!", BURN_FILE_NAME)
-        
-    else:
-        logfile.write('\r\nNOT connected to the Internet')        
+    HELLO_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello2.mp3"
+    AFTER_HELLO_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-boeing.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-boeing.mp3",  "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-yippee1.mp3"
+    BYEBYE_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-goodbye1.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.mp3"
+    AFTER_BYEBYE_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-cry1.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-loveu.mp3", "snd/20150201_zoe-loveu.mp3"
 
+    HELLO_FILE_NAME = random.choice(HELLO_AUDIO)
+#    HELLO_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/hello_file.mp3"
+    GOODBYE_FILE_NAME = random.choice(BYEBYE_AUDIO)
+#    GOODBYE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/byebye_file.mp3"
+    BADGE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
+    MOVE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/move_file.mp3"
+    BORED_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/bored_file.mp3"
+    BURN_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/burn_file.mp3"
+    
+##    if CONNECTED:
+##    try:
+##        speakSpeechFromText("Yeay,,,,,, we are connected to the Internet!", "intro.mp3")
+##        print "Connected to internet"
+##        logfile.write('\r\nConnected to the Internet')
+##        play_sound(MAX_VOLUME, "intro.mp3")
+##        CONNECTED = 1
+##    except:
+##        print "Not connected to internet"
+##        logfile.write('\r\nNOT connected to the Internet')        
+##        CONNECTED = 0
+        
 #############################
 # Main while loop
 #############################
@@ -694,6 +689,7 @@ try:
 # Burn Hazard Detected !
 ###########################
             if max(temperature_array) > BURN_HAZARD_TEMP:
+                burn_hazard = 1
                 screen.fill(name_to_rgb('red'), message_area)
                 text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
                 textpos = text.get_rect()
@@ -702,11 +698,17 @@ try:
 # update the screen
                 pygame.display.update()
                 play_sound(MAX_VOLUME, BURN_FILE_NAME)
+                if DEBUG:
+                    print 'Played Burn warning audio'
                 if CONNECTED:
-                    speakSpeechFromText("The temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
-                    play_sound(MAX_VOLUME, "mtemp.mp3")
-
-                burn_hazard = 1
+                    try:
+                        speakSpeechFromText("The temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
+                        play_sound(MAX_VOLUME, "mtemp.mp3")
+                        if DEBUG:
+                            print 'Played Burn temperature audio'
+                    except:
+                        continue
+                
                 break
 
 ###########################
@@ -735,11 +737,15 @@ try:
 # if previous error is the same absolute value as the current error, then we are oscillating - stop it
                     if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
                         previous_pid_error = pid_error
-                        servo_position += pid_error
+                        servo_position -= pid_error
                         servo_position = set_servo_to_position(servo_position)
-                        play_sound(MAX_VOLUME, MOVE_FILE_NAME)
-                        if (pid_error < -100):
-                            play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+##                        play_sound(MAX_VOLUME, MOVE_FILE_NAME)
+##                        if DEBUG:
+##                            print 'Played move audio'
+##                        if (pid_error < -100):
+##                            play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+##                            if DEBUG:
+##                                print 'Played badge audio'
 
                         time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
 
@@ -781,12 +787,17 @@ try:
                 if servo_direction == SERVO_CUR_DIR_CCW:
                     if DEBUG:
                         print ' Direction: CCW'
-                    servo_position += MINIMUM_SERVO_GRANULARITY
+                    servo_position += ROAMING_GRANULARTY
                 if servo_direction == SERVO_CUR_DIR_CW:
                     if DEBUG:
                         print ' Direction: CW'
-                    servo_position -= MINIMUM_SERVO_GRANULARITY
+                    servo_position -= ROAMING_GRANULARTY
                   
+                if RAND:
+                    servo_position = random.randint(MIN_SERVO_POSITION, MAX_SERVO_POSITION)
+                    if DEBUG:
+                        print 'Random servo_position: '+str(servo_position)
+
                 servo_position = set_servo_to_position(servo_position)
 
 # End of inner While loop
@@ -822,17 +833,21 @@ try:
 
 # Play "hello" sound effect
                 play_sound(MAX_VOLUME, HELLO_FILE_NAME)
-
-                if CONNECTED:
-                    speakSpeechFromText("The room temperature is "+"%.1f"%room_temp+" degrees fahrenheit", "rtemp.mp3")
-                    play_sound(MAX_VOLUME, "rtemp.mp3")
-
-                    #speakSpeechFromText("and your temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
-                    #play_sound(MAX_VOLUME, "mtemp.mp3")
-                    
+                if DEBUG:
+                    print 'Played hello audio'
 
                 person_existed_last_time = 1
                 played_hello =1
+
+                if CONNECTED:
+                    try:
+                        speakSpeechFromText("The room temperature is "+"%.1f"%room_temp+" degrees fahrenheit", "rtemp.mp3")
+                        play_sound(MAX_VOLUME, "rtemp.mp3")
+
+                        #speakSpeechFromText("and your temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
+                        #play_sound(MAX_VOLUME, "mtemp.mp3")
+                    except:
+                        continue
 
         else:
             if person_existed_last_time == 1:           # person moved away from the device
@@ -858,7 +873,12 @@ try:
 # Play "bye bye" sound effect
                 #byebye_message = random.choice(BYEBYE_FILE_NAME)
                 play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+                if DEBUG:
+                    print 'Played badge audio'
+
                 play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
+                if DEBUG:
+                    print 'Played bye audio'
 
                 played_byebye =1
                 person_existed_last_time = 0
