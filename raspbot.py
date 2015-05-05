@@ -136,24 +136,47 @@ RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
 PERSON_TEMP_THRESHOLD = 81      # degrees fahrenheit
-
+MONITOR = 1             # assume a monitor is attached
 # Servo positions
+# Weirdness factor: Some servo's I used go in the reverse direction from other servos. Therefore, this
+# next constant is used to change the software to use the appropriate servo. The HiTEC HS-55 Feather servo.
+
+LOW_TO_HIGH_IS_COUNTERCLOCKWISE = 0
+LOW_TO_HIGH_IS_CLOCKWISE = 1
+HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE
+SERVO_TYPE = HITEC_HS55
+
 CENTER = 1500                  # Facing straign forward
 POSVECT_MIN = 0                 # POSVECT is the vector position of the robot head
 POSVECT_MAX = 2000              # POSVECT is a value between MIN and MAX where MIN is full clockwise and MAX is full CCW
 POSVECT_OFFSET = 600            # When POSVECT is added to the offset, the number can be used to position the servo
 
-MIN_SERVO_POSITION = 600
 CTR_SERVO_POSITION = 1500
-MAX_SERVO_POSITION = 2400
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
-
-
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
-SERVO_LIMIT_CW = MIN_SERVO_POSITION
 SERVO_CUR_DIR_CCW = 2
-SERVO_LIMIT_CCW = MAX_SERVO_POSITION
 ROAMING_GRANULARTY = 50
+HIT_WEIGHT_PERCENT = 0.1
+
+
+if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+    MIN_SERVO_POSITION = 2500
+    MAX_SERVO_POSITION = 500
+    SERVO_LIMIT_CW = MIN_SERVO_POSITION
+    SERVO_LIMIT_CCW = MAX_SERVO_POSITION
+    X_DELTA_0 = 200
+    X_DELTA_1 = 100
+    X_DELTA_2 = -100
+    X_DELTA_3 = -200
+else:
+    MIN_SERVO_POSITION = 500
+    MAX_SERVO_POSITION = 2500
+    SERVO_LIMIT_CW = MAX_SERVO_POSITION
+    SERVO_LIMIT_CCW = MIN_SERVO_POSITION
+    X_DELTA_0 = -200
+    X_DELTA_1 = -100
+    X_DELTA_2 = 100
+    X_DELTA_3 = 200
 
 # Logfile
 LOGFILE_NAME = 'Raspbot_logfile.txt'
@@ -187,7 +210,7 @@ def print_temps(temp_list):
     """
     Display each element's temperature in F
     """
-    if DEBUG:
+    if DEBUG and MONITOR:
         print "%.1f"%temp_list[12]+' ',
         print "%.1f"%temp_list[8]+' ',
         print "%.1f"%temp_list[4]+' ',
@@ -282,25 +305,48 @@ def set_servo_to_position (new_position):    # position across a line from 600 t
 
     if SERVO:
     # make sure we don't go out of bounds
-        if new_position == 0:
-            new_position = ((MAX_SERVO_POSITION - MIN_SERVO_POSITION)/2) + MIN_SERVO_POSITION
-        elif new_position < MIN_SERVO_POSITION:
-            new_position = MIN_SERVO_POSITION
-        elif new_position > MAX_SERVO_POSITION:
-            new_position = MIN_SERVO_POSITION
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            if new_position == 0:
+                new_position = CTR_SERVO_POSITION
+            elif new_position < MAX_SERVO_POSITION:
+                new_position = MAX_SERVO_POSITION
+            elif new_position > MIN_SERVO_POSITION:
+                new_position = MIN_SERVO_POSITION
+        else:
+            if new_position == 0:
+                new_position = CTR_SERVO_POSITION
+            elif new_position < MIN_SERVO_POSITION:
+                new_position = MIN_SERVO_POSITION
+            elif new_position > MAX_SERVO_POSITION:
+                new_position = MAX_SERVO_POSITION
 
-        if (new_position >= MIN_SERVO_POSITION and new_position <= MAX_SERVO_POSITION):
-            if (new_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
-                final_position = (new_position//MINIMUM_SERVO_GRANULARITY)*MINIMUM_SERVO_GRANULARITY
+        if DEBUG:
+            print 'Desired servo position: '+str(new_position)
+            
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            if (new_position >= MAX_SERVO_POSITION and new_position <= MIN_SERVO_POSITION):
+                if (new_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
+                    final_position = (new_position//MINIMUM_SERVO_GRANULARITY)*MINIMUM_SERVO_GRANULARITY
+                else:
+                    final_position = ((new_position//MINIMUM_SERVO_GRANULARITY)+1)*MINIMUM_SERVO_GRANULARITY
+                servo.set_servo(SERVO_GPIO_PIN, final_position)
             else:
-                final_position = ((new_position//MINIMUM_SERVO_GRANULARITY)+1)*MINIMUM_SERVO_GRANULARITY
+                if DEBUG:
+                    print 'ERROR: set_servo_to_position L-H=CW position out of range: '+str(new_position)+' min= '+str(MIN_SERVO_POSITION)+' max = '+str(MAX_SERVO_POSITION)
+        else:
+            if (new_position >= MIN_SERVO_POSITION and new_position <= MAX_SERVO_POSITION):
+                if (new_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
+                    final_position = (new_position//MINIMUM_SERVO_GRANULARITY)*MINIMUM_SERVO_GRANULARITY
+                else:
+                    final_position = ((new_position//MINIMUM_SERVO_GRANULARITY)+1)*MINIMUM_SERVO_GRANULARITY
+                servo.set_servo(SERVO_GPIO_PIN, final_position)
+            else:
+                if DEBUG:
+                    print 'ERROR: set_servo_to_position L-H=CCW position out of range: '+str(new_position)+' min= '+str(MIN_SERVO_POSITION)+' max = '+str(MAX_SERVO_POSITION)
+
             if DEBUG:
                 print 'Setting servo to final position: '+str(final_position)
 
-            servo.set_servo(SERVO_GPIO_PIN, final_position)
-        else:
-            if DEBUG:
-                print 'ERROR: set_servo_to_position position out of range: '+str(new_position)+' min= '+str(MIN_SERVO_POSITION)+' max = '+str(MAX_SERVO_POSITION)
 
         return final_position
 
@@ -308,11 +354,6 @@ def person_position(room, t_array, s_position):
     """
     Algorithm to calculate the position of a person based on sensor data
     """
-
-    X_DELTA_0 = 200
-    X_DELTA_1 = 100
-    X_DELTA_2 = -100
-    X_DELTA_3 = -200
 
     hit_count=[0]*OMRON_DATA_LIST
     t_delta=[0.0]*OMRON_DATA_LIST       # holds the difference between threshold and actual
@@ -330,47 +371,54 @@ def person_position(room, t_array, s_position):
         print_temps(t_delta)
         print 'Hit count = '+str(hit_count)
 
-    HIT_WEIGHT_PERCENT = 0.1
 # use hit counts as a weighting factor: 1 hit = x percent increase
     h_delta[0] = hit_count[12]+hit_count[13]+hit_count[14]+hit_count[15] # add up the far left column
     h_delta[1] = hit_count[8]+hit_count[9]+hit_count[10]+hit_count[11] 
     h_delta[2] = hit_count[4]+hit_count[5]+hit_count[6]+hit_count[7] 
     h_delta[3] = hit_count[0]+hit_count[1]+hit_count[2]+hit_count[3] 
 
-##    if DEBUG:
-##        print 'hit count delta: ',
-##        print h_delta
-##        print ''
+    if DEBUG:
+        print 'hit count delta: ',
+        print h_delta
+        print ''
 
     x_delta[0] = (t_delta[12]+t_delta[13]+t_delta[14]+t_delta[15])*(1+(h_delta[0]*HIT_WEIGHT_PERCENT))
     x_delta[1] = (t_delta[8]+t_delta[9]+t_delta[10]+t_delta[11])*(1+(h_delta[1]*HIT_WEIGHT_PERCENT))          
     x_delta[2] = (t_delta[4]+t_delta[5]+t_delta[6]+t_delta[7])*(1+(h_delta[2]*HIT_WEIGHT_PERCENT))
     x_delta[3] = (t_delta[0]+t_delta[1]+t_delta[2]+t_delta[3])*(1+(h_delta[3]*HIT_WEIGHT_PERCENT))            # add up the far right column
 
-##    if DEBUG:
-##        print 'x axis delta sums: ',
-##        print x_delta
-##        print ''
+    if DEBUG:
+        print 'x axis delta sums: ',
+        print x_delta
+        print ''
 
     p_delta[0] = x_delta[0]*(s_position+X_DELTA_0)                      # convert the far left column to a position relative to the last position
     p_delta[1] = x_delta[1]*(s_position+X_DELTA_1)
     p_delta[2] = x_delta[2]*(s_position+X_DELTA_2)
     p_delta[3] = x_delta[3]*(s_position+X_DELTA_3)                      # far right
 
-##    if DEBUG:
-##        print 'p delta multiplicands: ',
-##        print p_delta
-##        print ''
+    if DEBUG:
+        print 'p delta multiplicands: ',
+        print p_delta
+        print ''
 
-    person_position = (p_delta[0]+p_delta[1]+p_delta[2]+p_delta[3])/(x_delta[0]+x_delta[1]+x_delta[2]+x_delta[3])       # estimate the location on x-axis
+    person_position = (p_delta[3]+p_delta[2]+p_delta[1]+p_delta[0])/(x_delta[3]+x_delta[2]+x_delta[1]+x_delta[0])       # estimate the location on x-axis
 
 # make sure we don't go out of bounds
-    if person_position == 0:
-        person_position = CENTER
-    elif person_position < MIN_SERVO_POSITION:
-        person_position = MIN_SERVO_POSITION
-    elif person_position > MAX_SERVO_POSITION:
-        person_position = MAX_SERVO_POSITION
+    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+        if person_position == 0:
+            person_position = CENTER
+        elif person_position < MAX_SERVO_POSITION:
+            person_position = MAX_SERVO_POSITION
+        elif person_position > MIN_SERVO_POSITION:
+            person_position = MIN_SERVO_POSITION
+    else:
+        if person_position == 0:
+            person_position = CENTER
+        elif person_position < MIN_SERVO_POSITION:
+            person_position = MIN_SERVO_POSITION
+        elif person_position > MAX_SERVO_POSITION:
+            person_position = MAX_SERVO_POSITION
 
 # make sure the result has a granularity of 10us
     if (person_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
@@ -441,8 +489,13 @@ def speakSpeechFromText(phrase, output_file_name):
 # Handle command line arguments
 if "-debug" in sys.argv:
     DEBUG=1             # set this to 1 to see debug messages on monitor
+
 if "-noservo" in sys.argv:
     SERVO=0             # assume using servo is default
+
+if "-nomonitor" in sys.argv:
+    MONITOR=0             # assume using servo is default
+
 if "-roam" in sys.argv:
     ROAM=1              # set this to 1 to allow robot to roam looking for a person
 
@@ -452,6 +505,7 @@ if "-rand" in sys.argv:
 if "-help" in sys.argv:
     print 'IMPORTANT: run as superuser (sudo) to allow DMA access'
     print '-debug:   print debug info to console'
+    print '-nomonitor run without producing the pygame temp display'
     print '-noservo: do not use the servo motor'
     print '-roam:    when no person detected, turn head slowly 180 degrees'
     print '-rand:    when roaming randomize the head movement'
@@ -477,7 +531,10 @@ py=[0]*4
 omron_error_count = 0
 omron_read_count = 0
 servo_position = CENTER                 # initialize the servo to face directly forward
-servo_direction = SERVO_CUR_DIR_CCW     # initially start moving the servo CCW
+if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+    servo_direction = SERVO_CUR_DIR_CW     # initially start moving the servo CCW
+else:
+    servo_direction = SERVO_CUR_DIR_CCW     # initially start moving the servo CCW
 
 # Open log file
 logfile = open(LOGFILE_NAME, 'wb')
@@ -488,36 +545,37 @@ pygame.init()
 font = pygame.font.Font(None, 36)
 
 # setup the IR color window
-screen = pygame.display.set_mode(SCREEN_DIMENSIONS)
+if MONITOR:
+    screen = pygame.display.set_mode(SCREEN_DIMENSIONS)
 #screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.FULLSCREEN)
-pygame.display.set_caption('IR temp array')
+    pygame.display.set_caption('IR temp array')
 
 # initialize the window quadrant areas for displaying temperature
-pixel_width = SCREEN_DIMENSIONS[0]/4
-px = (pixel_width*3, pixel_width*2, pixel_width, 0)
-pixel_height = SCREEN_DIMENSIONS[0]/4               # using width here to keep an equal square; bottom section used for messages
-py = (0, pixel_width, pixel_width*2, pixel_width*3)
-for x in range(0,4):
-    for y in range(0,4):
-        quadrant[(x*4)+y] = (px[x], py[y], pixel_width, pixel_height)
-        center[(x*4)+y] = (pixel_width/2+px[x], pixel_height/2+py[y])
+    pixel_width = SCREEN_DIMENSIONS[0]/4
+    px = (pixel_width*3, pixel_width*2, pixel_width, 0)
+    pixel_height = SCREEN_DIMENSIONS[0]/4               # using width here to keep an equal square; bottom section used for messages
+    py = (0, pixel_width, pixel_width*2, pixel_width*3)
+    for x in range(0,4):
+        for y in range(0,4):
+            quadrant[(x*4)+y] = (px[x], py[y], pixel_width, pixel_height)
+            center[(x*4)+y] = (pixel_width/2+px[x], pixel_height/2+py[y])
 #if DEBUG:
 #   for i in range(0,OMRON_DATA_LIST):
 #      print 'Q['+str(i)+'] = '+str(quadrant[i])
 #      print 'c['+str(i)+'] = '+str(center[i])
 
 # initialize the location of the message area
-room_temp_area = (0, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
-room_temp_msg_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
+    room_temp_area = (0, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+    room_temp_msg_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
 
-message_area = (0, SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
-message_area_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/6)+(SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
+    message_area = (0, SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+    message_area_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/6)+(SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
 
 try:
 # Initialize i2c bus address
     logfile.write('\r\nInitializing smbus at '+str(datetime.now()))
     i2c_bus = smbus.SMBus(1)
-    time.sleep(0.05)                # Wait a short time
+    time.sleep(0.1)                # Wait
 
 # make some space
     print ''
@@ -531,6 +589,7 @@ try:
         GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
         servo = PWM.Servo()
         servo.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
+        time.sleep(5.0)                # Wait a sec before starting
     else:
         print 'SERVO is off'
 
@@ -662,41 +721,44 @@ try:
             if DEBUG:
                 print 'Omron D6T internal temp = '+"%.1f"%room_temp+' F'
 
+            if MONITOR:
 # create the IR pixels
-            for i in range(0,OMRON_DATA_LIST):
+                for i in range(0,OMRON_DATA_LIST):
 # This fills each little array square with a background color that matches the temp
-                screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
+                    screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, temperature_array[i]), quadrant[i])
 # Display temp value
-                if temperature_array[i] > PERSON_TEMP_THRESHOLD:
-                    text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('red'))
-                else:
-                    text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('navy'))
-                textpos = text.get_rect()
-                textpos.center = center[i]
-                screen.blit(text, textpos)
+                    if temperature_array[i] > PERSON_TEMP_THRESHOLD:
+                        text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('red'))
+                    else:
+                        text = font.render("%.1f"%temperature_array[i], 1, name_to_rgb('navy'))
+                    textpos = text.get_rect()
+                    textpos.center = center[i]
+                    screen.blit(text, textpos)
 
 # Create an area to display the room temp and messages
-            screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, room_temp), room_temp_area)
-            text = font.render("Room: %.1f"%room_temp, 1, name_to_rgb('navy'))
-            textpos = text.get_rect()
-            textpos.center = room_temp_msg_xy
-            screen.blit(text, textpos)
+                screen.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, room_temp), room_temp_area)
+                text = font.render("Room: %.1f"%room_temp, 1, name_to_rgb('navy'))
+                textpos = text.get_rect()
+                textpos.center = room_temp_msg_xy
+                screen.blit(text, textpos)
 
 # update the screen
-            pygame.display.update()
+                pygame.display.update()
 
 ###########################
 # Burn Hazard Detected !
 ###########################
             if max(temperature_array) > BURN_HAZARD_TEMP:
                 burn_hazard = 1
-                screen.fill(name_to_rgb('red'), message_area)
-                text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
-                textpos = text.get_rect()
-                textpos.center = message_area_xy
-                screen.blit(text, textpos)
+                if MONITOR:
+                    screen.fill(name_to_rgb('red'), message_area)
+                    text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
+                    textpos = text.get_rect()
+                    textpos.center = message_area_xy
+                    screen.blit(text, textpos)
 # update the screen
-                pygame.display.update()
+                    pygame.display.update()
+
                 play_sound(MAX_VOLUME, BURN_FILE_NAME)
                 if DEBUG:
                     print 'Played Burn warning audio'
@@ -715,13 +777,14 @@ try:
 # Person Detected !
 ###########################
             elif person_detector(room_temp, temperature_array):    # Here is where a person is detected
-                screen.fill(name_to_rgb('white'), message_area)
-                text = font.render("Hello!", 1, name_to_rgb('red'))
-                textpos = text.get_rect()
-                textpos.center = message_area_xy
-                screen.blit(text, textpos)
+                if MONITOR:
+                    screen.fill(name_to_rgb('white'), message_area)
+                    text = font.render("Hello!", 1, name_to_rgb('red'))
+                    textpos = text.get_rect()
+                    textpos.center = message_area_xy
+                    screen.blit(text, textpos)
 # update the screen
-                pygame.display.update()
+                    pygame.display.update()
 
                 if SERVO:
 # face the servo twoards the heat
@@ -737,7 +800,11 @@ try:
 # if previous error is the same absolute value as the current error, then we are oscillating - stop it
                     if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
                         previous_pid_error = pid_error
-                        servo_position -= pid_error
+                        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                            servo_position += pid_error
+                        else:
+                            servo_position -= pid_error
+                           
                         servo_position = set_servo_to_position(servo_position)
 ##                        play_sound(MAX_VOLUME, MOVE_FILE_NAME)
 ##                        if DEBUG:
@@ -757,13 +824,15 @@ try:
 # Nobody Detected !
 ###########################
             else:
-                screen.fill(name_to_rgb('white'), message_area)
-                text = font.render("Waiting...", 1, name_to_rgb('blue'))
-                textpos = text.get_rect()
-                textpos.center = message_area_xy
-                screen.blit(text, textpos)
+                if MONITOR:
+                    screen.fill(name_to_rgb('white'), message_area)
+                    text = font.render("Waiting...", 1, name_to_rgb('blue'))
+                    textpos = text.get_rect()
+                    textpos.center = message_area_xy
+                    screen.blit(text, textpos)
 # update the screen
-                pygame.display.update()
+                    pygame.display.update()
+
                 person = 0
                 burn_hazard = 0
 
@@ -771,33 +840,61 @@ try:
 
             if SERVO and ROAM:
 
-                if (servo_position >= SERVO_LIMIT_CCW):
-                    if DEBUG:
-                        print 'CCW limit hit, changing direction'
-                    servo_direction = SERVO_CUR_DIR_CW
-                    #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                if (servo_position <= SERVO_LIMIT_CW):
-                    if DEBUG:
-                        print 'CW limit hit, changing direction'
-                    servo_direction = SERVO_CUR_DIR_CCW
-                    #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-               
+                if DEBUG:
+                    print 'Servo Type: '+str(SERVO_TYPE),
+                    print ' Servo position: '+str(servo_position),
+                    print ' Servo direction: '+str(servo_direction)
+
+                if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                    if (servo_position <= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
+                        if DEBUG:
+                            print 'CCW limit hit, changing direction'
+                        servo_direction = SERVO_CUR_DIR_CW
+                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                else:
+                    if (servo_position >= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
+                        if DEBUG:
+                            print 'CCW limit hit, changing direction'
+                        servo_direction = SERVO_CUR_DIR_CW
+                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                    
+                if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                    if (servo_position >= SERVO_LIMIT_CW and servo_direction == SERVO_CUR_DIR_CW):
+                        if DEBUG:
+                            print 'CW limit hit, changing direction'
+                        servo_direction = SERVO_CUR_DIR_CCW
+                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                else:
+                    if (servo_position <= SERVO_LIMIT_CW and servo_direction == SERVO_CUR_DIR_CW):
+                        if DEBUG:
+                            print 'CW limit hit, changing direction'
+                        servo_direction = SERVO_CUR_DIR_CCW
+                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                    
                 if DEBUG:
                     print 'Servo: Roaming. Position: '+str(servo_position),
                 if servo_direction == SERVO_CUR_DIR_CCW:
                     if DEBUG:
                         print ' Direction: CCW'
-                    servo_position += ROAMING_GRANULARTY
+                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                        servo_position -= ROAMING_GRANULARTY
+                    else:
+                        servo_position += ROAMING_GRANULARTY
                 if servo_direction == SERVO_CUR_DIR_CW:
                     if DEBUG:
                         print ' Direction: CW'
-                    servo_position -= ROAMING_GRANULARTY
+                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                        servo_position += ROAMING_GRANULARTY
+                    else:
+                        servo_position -= ROAMING_GRANULARTY
                   
                 if RAND:
                     servo_position = random.randint(MIN_SERVO_POSITION, MAX_SERVO_POSITION)
                     if DEBUG:
                         print 'Random servo_position: '+str(servo_position)
 
+                if DEBUG:
+                    print 'Servo: Setting position to: '+str(servo_position),
                 servo_position = set_servo_to_position(servo_position)
 
 # End of inner While loop
@@ -813,13 +910,14 @@ try:
         if person == 1:
             if person_existed_last_time == 0:           # person detected for the first time
 
-                screen.fill(name_to_rgb('white'), message_area)
-                text = font.render("Hello!", 1, name_to_rgb('red'))
-                textpos = text.get_rect()
-                textpos.center = message_area_xy
-                screen.blit(text, textpos)
+                if MONITOR:
+                    screen.fill(name_to_rgb('white'), message_area)
+                    text = font.render("Hello!", 1, name_to_rgb('red'))
+                    textpos = text.get_rect()
+                    textpos.center = message_area_xy
+                    screen.blit(text, textpos)
 # update the screen
-                pygame.display.update()
+                    pygame.display.update()
 
                 if DEBUG:
                     print '************************** Hello Person! **************************'
@@ -851,14 +949,14 @@ try:
 
         else:
             if person_existed_last_time == 1:           # person moved away from the device
-
-                screen.fill(name_to_rgb('white'), message_area)
-                text = font.render("Bye bye!", 1, name_to_rgb('red'))
-                textpos = text.get_rect()
-                textpos.center = message_area_xy
-                screen.blit(text, textpos)
+                if MONITOR:
+                    screen.fill(name_to_rgb('white'), message_area)
+                    text = font.render("Bye bye!", 1, name_to_rgb('red'))
+                    textpos = text.get_rect()
+                    textpos.center = message_area_xy
+                    screen.blit(text, textpos)
 # update the screen
-                pygame.display.update()
+                    pygame.display.update()
 
                 if DEBUG:
                     print '************************** Bye Bye Person! **************************'
