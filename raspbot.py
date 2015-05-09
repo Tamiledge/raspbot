@@ -158,10 +158,10 @@ SERVO_CUR_DIR_CCW = 2
 ROAMING_GRANULARTY = 50
 HIT_WEIGHT_PERCENT = 0.1
 
-
+# Strange things happen: Some servos move CW and others move CCW for the same number.
 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-    MIN_SERVO_POSITION = 2500
-    MAX_SERVO_POSITION = 500
+    MIN_SERVO_POSITION = 2400
+    MAX_SERVO_POSITION = 600
     SERVO_LIMIT_CW = MIN_SERVO_POSITION
     SERVO_LIMIT_CCW = MAX_SERVO_POSITION
     X_DELTA_0 = 200
@@ -169,8 +169,8 @@ if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
     X_DELTA_2 = -100
     X_DELTA_3 = -200
 else:
-    MIN_SERVO_POSITION = 500
-    MAX_SERVO_POSITION = 2500
+    MIN_SERVO_POSITION = 600
+    MAX_SERVO_POSITION = 2400
     SERVO_LIMIT_CW = MAX_SERVO_POSITION
     SERVO_LIMIT_CCW = MIN_SERVO_POSITION
     X_DELTA_0 = -200
@@ -298,7 +298,7 @@ def crash_and_burn(msg, pygame, servo, logfile):
     pygame.quit()
     sys.exit()
 
-def set_servo_to_position (new_position):    # position across a line from 600 to 2500 points
+def set_servo_to_position (new_position):
     """
     Moves the servo to a new position
     """
@@ -350,10 +350,16 @@ def set_servo_to_position (new_position):    # position across a line from 600 t
 
         return final_position
 
-def person_position(room, t_array, s_position):
+def person_position_2_hit(room, t_array, s_position):
     """
-    Algorithm to calculate the position of a person based on sensor data
+    Used to detect a persons presence using the "greater than two algorithm"
+    returns (TRUE/FALSE - person detected, whole integer - approximate person position)
     """
+    PERSON_TEMP_SUM_THRESHOLD = 3
+    hit_count = 0
+
+    if DEBUG:
+        print 'person temp threshold = '+str(PERSON_TEMP_THRESHOLD)
 
     hit_count=[0]*OMRON_DATA_LIST
     t_delta=[0.0]*OMRON_DATA_LIST       # holds the difference between threshold and actual
@@ -366,6 +372,10 @@ def person_position(room, t_array, s_position):
             t_delta[i] = t_array[i] - PERSON_TEMP_THRESHOLD
             hit_count[i] += 1
             
+    if DEBUG:
+        print 'Hit count = '+str(hit_count)
+
+
     if DEBUG:
         print 'Temperature deltas'
         print_temps(t_delta)
@@ -382,81 +392,37 @@ def person_position(room, t_array, s_position):
         print h_delta
         print ''
 
-    x_delta[0] = (t_delta[12]+t_delta[13]+t_delta[14]+t_delta[15])*(1+(h_delta[0]*HIT_WEIGHT_PERCENT))
-    x_delta[1] = (t_delta[8]+t_delta[9]+t_delta[10]+t_delta[11])*(1+(h_delta[1]*HIT_WEIGHT_PERCENT))          
-    x_delta[2] = (t_delta[4]+t_delta[5]+t_delta[6]+t_delta[7])*(1+(h_delta[2]*HIT_WEIGHT_PERCENT))
-    x_delta[3] = (t_delta[0]+t_delta[1]+t_delta[2]+t_delta[3])*(1+(h_delta[3]*HIT_WEIGHT_PERCENT))            # add up the far right column
-
-    if DEBUG:
-        print 'x axis delta sums: ',
-        print x_delta
-        print ''
-
-    p_delta[0] = x_delta[0]*(s_position+X_DELTA_0)                      # convert the far left column to a position relative to the last position
-    p_delta[1] = x_delta[1]*(s_position+X_DELTA_1)
-    p_delta[2] = x_delta[2]*(s_position+X_DELTA_2)
-    p_delta[3] = x_delta[3]*(s_position+X_DELTA_3)                      # far right
-
-    if DEBUG:
-        print 'p delta multiplicands: ',
-        print p_delta
-        print ''
-
-    person_position = (p_delta[3]+p_delta[2]+p_delta[1]+p_delta[0])/(x_delta[3]+x_delta[2]+x_delta[1]+x_delta[0])       # estimate the location on x-axis
-
-# make sure we don't go out of bounds
-    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-        if person_position == 0:
-            person_position = CENTER
-        elif person_position < MAX_SERVO_POSITION:
-            person_position = MAX_SERVO_POSITION
-        elif person_position > MIN_SERVO_POSITION:
-            person_position = MIN_SERVO_POSITION
+# First, look for > two hits in a single column
+    if (h_delta[1] >= 2 and h_delta[2] >= 2):
+        # stop
+        return (True, s_position)
+    elif (h_delta[0] >= 2 and h_delta[1] <= 1 and h_delta[2] <= 1 and h_delta[3] <= 1):
+        # move CW 30 degrees (333 us)
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position + FAR)
+        else:
+            return (True, s_position - FAR)
+    elif (h_delta[1] >= 2 and h_delta[2] <= 1 and h_delta[3] <= 1):
+        # move CW 15 degrees (166 us)
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position + NEAR)
+        else:
+            return (True, s_position - NEAR)
+    elif (h_delta[2] >= 2 and h_delta[0] <= 1 and h_delta[1] <= 1):
+        # move CCW 15 degrees
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position - NEAR)
+        else:
+            return (True, s_position + NEAR)
+    elif (h_delta[3] >= 2 and h_delta[0] <= 1 and h_delta[1] <= 1 and h_delta[2] <= 1):
+        # move CCW 30 degrees
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position - FAR)
+        else:
+            return (True, s_position + FAR)
     else:
-        if person_position == 0:
-            person_position = CENTER
-        elif person_position < MIN_SERVO_POSITION:
-            person_position = MIN_SERVO_POSITION
-        elif person_position > MAX_SERVO_POSITION:
-            person_position = MAX_SERVO_POSITION
-
-# make sure the result has a granularity of 10us
-    if (person_position%MINIMUM_SERVO_GRANULARITY < 5):        # if there is a remainder, then we need to make the value in 10us increments
-        person_position = (person_position//MINIMUM_SERVO_GRANULARITY)*MINIMUM_SERVO_GRANULARITY
-    else:
-        person_position = ((person_position//MINIMUM_SERVO_GRANULARITY)+1)*MINIMUM_SERVO_GRANULARITY
-
-    if DEBUG:
-        print 'person_position = '+str(person_position)
-
-    return person_position
-            
-def person_detector(room, t_array):
-    """
-    Used to detect a persons presence using the sensor data
-    """
-    PERSON_TEMP_SUM_THRESHOLD = 3
-    t_sum = 0
-    hit_count = 0
-
-    if DEBUG:
-        print 'person temp threshold = '+str(PERSON_TEMP_THRESHOLD)
-
-    for i in range(0,OMRON_DATA_LIST):
-#        if (t_array[i] > room+TEMPMARGIN and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
-        if (t_array[i] > PERSON_TEMP_THRESHOLD and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
-            t_sum += t_array[i] - PERSON_TEMP_THRESHOLD
-            hit_count += 1
-
-    if DEBUG:
-        print 'Temperature sum = '+str(t_sum)
-        print 'Hit count = '+str(hit_count)
-
-#    if hit_count > 1 and t_sum > PERSON_TEMP_SUM_THRESHOLD:
-    if hit_count > 1:
-        return True
-    else:
-        return False
+        # no person detected
+        return (False, s_position)
 
 def downloadFile(url, fileName):
     fp = open(fileName, "wb")
@@ -746,6 +712,14 @@ try:
                 pygame.display.update()
 
 ###########################
+# Analyze sensor data
+###########################
+            p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+            if DEBUG:
+                print 'Person detect (p_detect): '+str(p_detect),
+                print ' Person position (p_pos): '+str(p_pos)
+
+###########################
 # Burn Hazard Detected !
 ###########################
             if max(temperature_array) > BURN_HAZARD_TEMP:
@@ -776,7 +750,7 @@ try:
 ###########################
 # Person Detected !
 ###########################
-            elif person_detector(room_temp, temperature_array):    # Here is where a person is detected
+            elif p_detect:    # Here is where a person is detected
                 if MONITOR:
                     screen.fill(name_to_rgb('white'), message_area)
                     text = font.render("Hello!", 1, name_to_rgb('red'))
@@ -788,7 +762,6 @@ try:
 
                 if SERVO:
 # face the servo twoards the heat
-                    p_pos = person_position(room_temp, temperature_array, servo_position)
                     pid_controller.setPoint(p_pos)                      # setpoint is the desired position
                     pid_error = pid_controller.update(servo_position)         # process variable is current position
                     if DEBUG:
