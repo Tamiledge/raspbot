@@ -132,6 +132,7 @@ SCREEN_DIMENSIONS = [400, 600]  # setup the IR color window [0]= width [1]= heig
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
 MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
 ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
+ROAM_MAX = 100          # Max number of times to roam between person detections (roughly 0.5 seconds between roams
 RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
@@ -524,6 +525,7 @@ left_ctr=[0.0]*4
 right_ctr=[0.0]*4
 right_far=[0.0]*4
 
+roam_count = 0                      # keeps track of how many times the head roams so that we can turn it off
 fatal_error = 0
 retries=0
 played_hello=0
@@ -752,7 +754,7 @@ try:
 ###########################
 # Analyze sensor data
 ###########################
-            p_detect, p_pos = person_position_quad_hit(room_temp, temperature_array, servo_position)
+            p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
             if DEBUG:
                 print 'Person detect (p_detect): '+str(p_detect),
                 print ' Person position (p_pos): '+str(p_pos)
@@ -761,6 +763,7 @@ try:
 # Burn Hazard Detected !
 ###########################
             if max(temperature_array) > BURN_HAZARD_TEMP:
+                roam_count = 0
                 burn_hazard = 1
                 if MONITOR:
                     screen.fill(name_to_rgb('red'), message_area)
@@ -789,6 +792,7 @@ try:
 # Person Detected !
 ###########################
             elif p_detect:    # Here is where a person is detected
+                roam_count = 0
                 if MONITOR:
                     screen.fill(name_to_rgb('white'), message_area)
                     text = font.render("Hello!", 1, name_to_rgb('red'))
@@ -849,12 +853,15 @@ try:
 
 # put servo in roaming mode
 
-            if SERVO and ROAM:
+            if SERVO and ROAM and roam_count <= ROAM_MAX:
+
+                roam_count += 1
 
                 if DEBUG:
                     print 'Servo Type: '+str(SERVO_TYPE),
                     print ' Servo position: '+str(servo_position),
-                    print ' Servo direction: '+str(servo_direction)
+                    print ' Servo direction: '+str(servo_direction),
+                    print ' Roam count = '+str(roam_count)
 
                 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                     if (servo_position <= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
