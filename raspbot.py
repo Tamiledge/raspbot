@@ -132,7 +132,7 @@ SCREEN_DIMENSIONS = [400, 600]  # setup the IR color window [0]= width [1]= heig
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
 MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
 ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
-ROAM_MAX = 100          # Max number of times to roam between person detections (roughly 0.5 seconds between roams
+ROAM_MAX = 600          # Max number of times to roam between person detections (roughly 0.5 seconds between roams
 RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
