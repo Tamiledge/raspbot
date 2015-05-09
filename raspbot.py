@@ -157,8 +157,15 @@ SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
 ROAMING_GRANULARTY = 50
 HIT_WEIGHT_PERCENT = 0.1
+PERSON_TEMP_SUM_THRESHOLD = 3
+FAR = 180       # the number of microseconds to move the servo when the person is not near cetner
+NEAR = 90      # the number of microseconds to move the servo when the person is near the center
 
 # Strange things happen: Some servos move CW and others move CCW for the same number.
+# it is possible that the "front" of the servo might be treated differently
+# and it seams that the colors of the wires on the servo might indicate different servos:
+# brown, red, orange seems to be HIGH_TO_LOW is clockwise (2400 is full CCW and 600 is full CW)
+# black, red, yellos seems to be LOW_TO_HIGH is clockwise (2400 is full CW and 600 is full CCW)
 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
     MIN_SERVO_POSITION = 2400
     MAX_SERVO_POSITION = 600
@@ -350,12 +357,10 @@ def set_servo_to_position (new_position):
 
         return final_position
 
-def person_position_2_hit(room, t_array, s_position):
+def get_hit_array(room, t_array, s_position):
     """
-    Used to detect a persons presence using the "greater than two algorithm"
-    returns (TRUE/FALSE - person detected, whole integer - approximate person position)
+    Used to fill a 4x4 array with a person "hit" temperature logical value
     """
-    PERSON_TEMP_SUM_THRESHOLD = 3
     hit_count = 0
 
     if DEBUG:
@@ -363,8 +368,6 @@ def person_position_2_hit(room, t_array, s_position):
 
     hit_count=[0]*OMRON_DATA_LIST
     t_delta=[0.0]*OMRON_DATA_LIST       # holds the difference between threshold and actual
-    x_delta=[0.0]*4                             # holds the sums of differences along the x axis
-    p_delta=[0.0]*4                             # holds the sums of differences along multiplied by position
     h_delta=[0]*4
 
     for i in range(0,OMRON_DATA_LIST):
@@ -374,9 +377,6 @@ def person_position_2_hit(room, t_array, s_position):
             
     if DEBUG:
         print 'Hit count = '+str(hit_count)
-
-
-    if DEBUG:
         print 'Temperature deltas'
         print_temps(t_delta)
         print 'Hit count = '+str(hit_count)
@@ -392,34 +392,72 @@ def person_position_2_hit(room, t_array, s_position):
         print h_delta
         print ''
 
+    return h_delta
+
+def person_position_2_hit(room, t_array, s_position):
+    """
+    Used to detect a persons presence using the "greater than two algorithm"
+    returns (TRUE/FALSE - person detected, whole integer - approximate person position)
+    """
+
+    hit_array = get_hit_array(room, t_array, s_position)
+
 # First, look for > two hits in a single column
-    if (h_delta[1] >= 2 and h_delta[2] >= 2):
+    if (hit_array[1] >= 2 and hit_array[2] >= 2):
         # stop
         return (True, s_position)
-    elif (h_delta[0] >= 2 and h_delta[1] <= 1 and h_delta[2] <= 1 and h_delta[3] <= 1):
-        # move CW 30 degrees (333 us)
+    elif (hit_array[0] >= 2 and hit_array[1] <= 1 and hit_array[2] <= 1 and hit_array[3] <= 1):
+        # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + FAR)
         else:
             return (True, s_position - FAR)
-    elif (h_delta[1] >= 2 and h_delta[2] <= 1 and h_delta[3] <= 1):
-        # move CW 15 degrees (166 us)
+    elif (hit_array[1] >= 2 and hit_array[2] <= 1 and hit_array[3] <= 1):
+        # move CW 15
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + NEAR)
         else:
             return (True, s_position - NEAR)
-    elif (h_delta[2] >= 2 and h_delta[0] <= 1 and h_delta[1] <= 1):
-        # move CCW 15 degrees
+    elif (hit_array[2] >= 2 and hit_array[0] <= 1 and hit_array[1] <= 1):
+        # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - NEAR)
         else:
             return (True, s_position + NEAR)
-    elif (h_delta[3] >= 2 and h_delta[0] <= 1 and h_delta[1] <= 1 and h_delta[2] <= 1):
-        # move CCW 30 degrees
+    elif (hit_array[3] >= 2 and hit_array[0] <= 1 and hit_array[1] <= 1 and hit_array[2] <= 1):
+        # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - FAR)
         else:
             return (True, s_position + FAR)
+    else:
+        # no person detected
+        return (False, s_position)
+
+def person_position_quad_hit(room, t_array, s_position):
+    """
+    Used to detect a persons presence using the "look for hits in a 2x2 quadrant algorithm"
+    returns (TRUE/FALSE - person detected, whole integer - approximate person position)
+    """
+
+    hit_array = get_hit_array(room, t_array, s_position)
+
+# First, look for center quad hits
+    if (hit_array[1] >= 2 and hit_array[2] >= 2):
+        # stop
+        return (True, s_position)
+    elif (hit_array[0] >= 2 and hit_array[0] >= 2):
+        # move CW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position + NEAR)
+        else:
+            return (True, s_position - NEAR)
+    elif (hit_array[2] >= 2 and hit_array[3] >= 2):
+        # move CCW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position - NEAR)
+        else:
+            return (True, s_position + NEAR)
     else:
         # no person detected
         return (False, s_position)
@@ -714,7 +752,7 @@ try:
 ###########################
 # Analyze sensor data
 ###########################
-            p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+            p_detect, p_pos = person_position_quad_hit(room_temp, temperature_array, servo_position)
             if DEBUG:
                 print 'Person detect (p_detect): '+str(p_detect),
                 print ' Person position (p_pos): '+str(p_pos)
