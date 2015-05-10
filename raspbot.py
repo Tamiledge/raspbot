@@ -312,9 +312,9 @@ def crash_and_burn(msg, pygame, servo, logfile):
         print msg
     if SERVO:
         servo.stop_servo(SERVO_GPIO_PIN)
+    pygame.quit()
     logfile.write(msg+' @ '+str(datetime.now()))
     logfile.close
-    pygame.quit()
     sys.exit()
 
 def set_servo_to_position (new_position):
@@ -574,33 +574,6 @@ else:
 pygame.init()
 font = pygame.font.Font(None, 36)
 
-# setup the IR color window
-if MONITOR:
-    screen = pygame.display.set_mode(SCREEN_DIMENSIONS)
-#screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.FULLSCREEN)
-    pygame.display.set_caption('IR temp array')
-
-# initialize the window quadrant areas for displaying temperature
-    pixel_width = SCREEN_DIMENSIONS[0]/4
-    px = (pixel_width*3, pixel_width*2, pixel_width, 0)
-    pixel_height = SCREEN_DIMENSIONS[0]/4               # using width here to keep an equal square; bottom section used for messages
-    py = (0, pixel_width, pixel_width*2, pixel_width*3)
-    for x in range(0,4):
-        for y in range(0,4):
-            quadrant[(x*4)+y] = (px[x], py[y], pixel_width, pixel_height)
-            center[(x*4)+y] = (pixel_width/2+px[x], pixel_height/2+py[y])
-#if DEBUG:
-#   for i in range(0,OMRON_DATA_LIST):
-#      print 'Q['+str(i)+'] = '+str(quadrant[i])
-#      print 'c['+str(i)+'] = '+str(center[i])
-
-# initialize the location of the message area
-    room_temp_area = (0, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
-    room_temp_msg_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
-
-    message_area = (0, SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
-    message_area_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/6)+(SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
-
 try:
 # Initialize i2c bus address
     i2c_bus = smbus.SMBus(1)
@@ -659,6 +632,33 @@ try:
     print 'CPU temperature = '+str(CPUtemp)
     logfile.write('\r\nCPU Temperature = '+str(CPUtemp))
     
+# setup the IR color window
+    if MONITOR:
+        screen = pygame.display.set_mode(SCREEN_DIMENSIONS)
+    #screen = pygame.display.set_mode(SCREEN_DIMENSIONS,pygame.FULLSCREEN)
+        pygame.display.set_caption('IR temp array')
+
+    # initialize the window quadrant areas for displaying temperature
+        pixel_width = SCREEN_DIMENSIONS[0]/4
+        px = (pixel_width*3, pixel_width*2, pixel_width, 0)
+        pixel_height = SCREEN_DIMENSIONS[0]/4               # using width here to keep an equal square; bottom section used for messages
+        py = (0, pixel_width, pixel_width*2, pixel_width*3)
+        for x in range(0,4):
+            for y in range(0,4):
+                quadrant[(x*4)+y] = (px[x], py[y], pixel_width, pixel_height)
+                center[(x*4)+y] = (pixel_width/2+px[x], pixel_height/2+py[y])
+    #if DEBUG:
+    #   for i in range(0,OMRON_DATA_LIST):
+    #      print 'Q['+str(i)+'] = '+str(quadrant[i])
+    #      print 'c['+str(i)+'] = '+str(center[i])
+
+    # initialize the location of the message area
+        room_temp_area = (0, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+        room_temp_msg_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
+
+        message_area = (0, SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+        message_area_xy = (SCREEN_DIMENSIONS[0]/2, (SCREEN_DIMENSIONS[1]/6)+(SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
+
 # initialze the music player
     pygame.mixer.init()
 
@@ -848,9 +848,8 @@ try:
                 GPIO.output(LED_GPIO_PIN, True)
                 if VERBOSE_LOGFILE:
                     hit_array = get_hit_array(room_temp, temperature_array, servo_position)
-                    logfile.write('\r\nPerson detected! detect cnt: '+str(p_detect_count)+' Hits: '+str(hit_array)+"%.1f"%max(temperature_array)+' degrees. Servo position: '+str(servo_position)+' at '+str(datetime.now()))
                     CPUtemp = getCPUtemperature()
-                    logfile.write('\r\nCPU Temperature = '+str(CPUtemp))
+                    logfile.write('\r\nPerson count: '+str(p_detect_count)+' Hits: '+str(hit_array)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp)+' @ '+str(datetime.now()))
                     if DEBUG:
                         print 'CPU temperature = '+str(CPUtemp)
 
@@ -904,15 +903,13 @@ try:
                 
                 if VERBOSE_LOGFILE:
                     hit_array = get_hit_array(room_temp, temperature_array, servo_position)
-                    logfile.write('\r\nNo Person! detect cnt: '+str(p_detect_count)+' Hits: '+str(hit_array)+" %.1f"%max(temperature_array)+' degrees. Roam count'+str(roam_count)+' at '+str(datetime.now()))
                     CPUtemp = getCPUtemperature()
-                    logfile.write('\r\nCPU Temperature = '+str(CPUtemp))
+                    logfile.write('\r\nNo person count: '+str(no_person_count)+' Hits: '+str(hit_array)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp)+' @ '+str(datetime.now()))
                     if DEBUG:
                         print 'CPU temperature = '+str(CPUtemp)
 
                 if (p_detect_count >= 5 or no_person_count >= 5) :    # this is used to lessen the repeate hello-goodbye issue
                     p_detect_count = 0
-                    no_person_count = 0
                     GPIO.output(LED_GPIO_PIN, False)
                     
                     if MONITOR:
