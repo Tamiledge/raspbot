@@ -324,9 +324,6 @@ def set_servo_to_position (new_position):
 
             debugPrint('Setting servo to position: '+str(final_position))
 
-            if VERBOSE_LOGFILE:
-                logfile.write('\r\n'+'Setting servo to position: '+str(final_position)+' at '+str(datetime.now()))
-
         return final_position
 
 def get_hit_array(room, t_array, s_position):
@@ -346,7 +343,7 @@ def get_hit_array(room, t_array, s_position):
             t_delta[i] = t_array[i] - PERSON_TEMP_THRESHOLD
             hit_count[i] += 1
             
-    debugPrint('Hit count = '+str(hit_count))
+#    debugPrint('Hit count = '+str(hit_count))
     debugPrint('Temperature deltas')
     print_temps(t_delta)
      
@@ -466,9 +463,10 @@ def getCPUtemperature():
     return temp_degF
 
 def debugPrint(message):
+    now_string = str(datetime.now())
     if DEBUG and MONITOR:
-        print message
-    logfile.write('\r\n'+message)
+        print now_string+': '+message
+    logfile.write('\r\n'+now_string+': '+message)
     
 
 ###############################
@@ -614,8 +612,7 @@ try:
 # initialze the music player
     pygame.mixer.init()
 
-    print 'Looking for a person'
-    logfile.write('\r\nLooking for a person at '+str(datetime.now()))
+    debugPrint('Looking for a person')
 
     no_person_count = 0
     p_detect_count = 0      # This is used to lessen the number of repeat "hello" and "goodbye" messages.
@@ -670,6 +667,8 @@ try:
         if MONITOR == 0:
             loop_count += 1
             if loop_count >= 600:   # every five minutes, write the log file to disk
+                logfile.write('\r\nLoop count max reached ('+str(loop_count)+' at '+str(datetime.now()))
+                logfile.write('\r\nClosing log file at '+str(datetime.now()))
                 loop_count = 0      # do this when running independently
                 logfile.close       # for forensic analysis
                 logfile = open(LOGFILE_NAME, 'wb')
@@ -785,7 +784,7 @@ try:
                         play_sound(MAX_VOLUME, "mtemp.mp3")
                     except:
                         continue
-                debugPrint('\r\n'+"Burn hazard temperature is "+"%.1f"%max(temperature_array)+" degrees"+' at '+str(datetime.now()))
+                debugPrint('\r\n'+"Burn hazard temperature is "+"%.1f"%max(temperature_array)+" degrees")
                 
                 break
 
@@ -798,7 +797,7 @@ try:
                 p_detect_count += 1
                 GPIO.output(LED_GPIO_PIN, True)
                 CPUtemp = getCPUtemperature()
-                debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp)+' @ '+str(datetime.now()))
+                debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
 
                 if MONITOR:
                     screen.fill(name_to_rgb('white'), message_area)
@@ -846,7 +845,7 @@ try:
                 no_person_count += 1
                 
                 CPUtemp = getCPUtemperature()
-                debugPrint('\r\nNo person count: '+str(no_person_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp)+' @ '+str(datetime.now()))
+                debugPrint('\r\nNo person count: '+str(no_person_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
 
                 if (p_detect_count >= 5 or no_person_count >= 5) :    # this is used to lessen the repeate hello-goodbye issue
                     p_detect_count = 0
@@ -866,11 +865,11 @@ try:
 
     # put servo in roaming mode
 
+                debugPrint('Servo Type: '+str(SERVO_TYPE)+' Servo position: '+str(servo_position)+' Servo direction: '+str(servo_direction)+' Roam count = '+str(roam_count))
+
                 if SERVO and ROAM and roam_count <= ROAM_MAX:
 
                     roam_count += 1
-
-                    debugPrint('Servo Type: '+str(SERVO_TYPE)+' Servo position: '+str(servo_position)+' Servo direction: '+str(servo_direction)+' Roam count = '+str(roam_count))
 
                     if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                         if (servo_position <= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
@@ -914,7 +913,10 @@ try:
 
                     debugPrint('Servo: Setting position to: '+str(servo_position))
                     servo_position = set_servo_to_position(servo_position)
+                else:
+                    debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
 
+                    
 # End of inner While loop
             break
 
@@ -1014,6 +1016,11 @@ except KeyboardInterrupt:
     crash_and_burn(crash_msg, pygame, servo, logfile)
 
 except IOError:
+    # do not close the logfile here - that allows the previous logfile to stay intact for a forensic analysis
     crash_msg = '\r\nI/O Error; quitting'
-    crash_and_burn(crash_msg, pygame, servo, logfile)
+    debugPrint(crash_msg)
+    if SERVO:
+        servo.stop_servo(SERVO_GPIO_PIN)
+    pygame.quit()
+    sys.exit()
 
