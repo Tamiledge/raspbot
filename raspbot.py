@@ -204,12 +204,9 @@ from RPIO import PWM        # for the servo motor
 
 CONNECTED = 0           # true if connected to the internet
 
-def getCPUtemperature():
-#    res = os.popen('vcgencmd measure temp').readline()
-#    return(res.replace("temp=","").replace("'C\n",""))
-    process = subprocess.Popen(['vcgencmd', 'measure_temp'], stdout=PIPE)
-    output, _error = process.communicate()
-    return float(output[output.index('=') + 1:output.index("'")])
+# function for celcius to farenheiht conversion
+def c2f (c):
+   return 9.0*c/5.0 + 32
 
 # function to get the average value of a list
 def avg(incoming_list):
@@ -501,6 +498,21 @@ def speakSpeechFromText(phrase, output_file_name):
 #    pygame.mixer.music.load(output_file_name)
 #    pygame.mixer.music.play()
 
+def getCPUtemperature():
+#    res = os.popen('vcgencmd measure temp').readline()
+#    return(res.replace("temp=","").replace("'C\n",""))
+#    process = Popen(['vcgencmd', 'measure_temp'], stdout=PIPE)
+#    output, _error = process.communicate()
+#    return float(output[output.index('=') + 1:output.index("'")])
+    fo = open("/sys/class/thermal/thermal_zone0/temp")
+    temp_str = fo.read();
+    fo.close()
+    temp_degC = float(temp_str)/1000
+    temp_degF = c2f(temp_degC)
+#    temp1 = temp_str[5:9]
+#    temp2 = eval(temp1)
+    return temp_degF
+
 ###############################
 #
 # Start of main line program
@@ -635,8 +647,6 @@ try:
 #   If you disconnect the sensor, the command above will abort the boot sequence and permit viewing
 #   of the log file created during the independent operation of the Rpi.
 
-    CPUtemp = getCPUtemperature()
-    
     logfile = open(LOGFILE_NAME, 'wb')
     logfile.write('\r\nLog file opened at '+str(datetime.now()))
 #    logfile.write('\r\nCPU Temp = '+str(getCPUtemperature())+' degrees Celcius')
@@ -645,6 +655,10 @@ try:
 #        print '\r\nCPU Temp = '+str(CPUtemp)+' degrees Celcius'
     logfile.write('\r\nPiGPIO version = '+str(version))
 
+    CPUtemp = getCPUtemperature()
+    print 'CPU temperature = '+str(CPUtemp)
+    logfile.write('\r\nCPU Temperature = '+str(CPUtemp))
+    
 # initialze the music player
     pygame.mixer.init()
 
@@ -835,6 +849,10 @@ try:
                 if VERBOSE_LOGFILE:
                     hit_array = get_hit_array(room_temp, temperature_array, servo_position)
                     logfile.write('\r\nPerson detected! detect cnt: '+str(p_detect_count)+' Hits: '+str(hit_array)+"%.1f"%max(temperature_array)+' degrees. Servo position: '+str(servo_position)+' at '+str(datetime.now()))
+                    CPUtemp = getCPUtemperature()
+                    logfile.write('\r\nCPU Temperature = '+str(CPUtemp))
+                    if DEBUG:
+                        print 'CPU temperature = '+str(CPUtemp)
 
                 if MONITOR:
                     screen.fill(name_to_rgb('white'), message_area)
@@ -887,6 +905,10 @@ try:
                 if VERBOSE_LOGFILE:
                     hit_array = get_hit_array(room_temp, temperature_array, servo_position)
                     logfile.write('\r\nNo Person! detect cnt: '+str(p_detect_count)+' Hits: '+str(hit_array)+" %.1f"%max(temperature_array)+' degrees. Roam count'+str(roam_count)+' at '+str(datetime.now()))
+                    CPUtemp = getCPUtemperature()
+                    logfile.write('\r\nCPU Temperature = '+str(CPUtemp))
+                    if DEBUG:
+                        print 'CPU temperature = '+str(CPUtemp)
 
                 if (p_detect_count >= 5 or no_person_count >= 5) :    # this is used to lessen the repeate hello-goodbye issue
                     p_detect_count = 0
