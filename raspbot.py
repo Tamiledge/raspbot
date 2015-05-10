@@ -274,6 +274,8 @@ def crash_and_burn(msg, pygame, servo, logfile):
     debugPrint(msg)
     if SERVO:
         servo.stop_servo(SERVO_GPIO_PIN)
+    LED_state = False
+    GPIO.output(LED_GPIO_PIN, LED_state)
     pygame.quit()
     logfile.write(msg+' @ '+str(datetime.now()))
     logfile.close
@@ -509,6 +511,7 @@ left_ctr=[0.0]*4
 right_ctr=[0.0]*4
 right_far=[0.0]*4
 
+LED_state = True
 roam_count = 0                      # keeps track of how many times the head roams so that we can turn it off
 fatal_error = 0
 retries=0
@@ -565,8 +568,8 @@ try:
         time.sleep(5.0)                # Wait a sec before starting
     else:
         print 'SERVO is off'
-
-    GPIO.output(LED_GPIO_PIN, True)
+    LED_state = True
+    GPIO.output(LED_GPIO_PIN, LED_state)
 
 # intialize the pigpio library and socket connection to the daemon (pigpiod)
     pi = pigpio.pi()              # use defaults
@@ -766,7 +769,8 @@ try:
             if max(temperature_array) > BURN_HAZARD_TEMP:
                 roam_count = 0
                 burn_hazard = 1
-                GPIO.output(LED_GPIO_PIN, True)
+                LED_state = True
+                GPIO.output(LED_GPIO_PIN, LED_state)
                 if MONITOR:
                     screen.fill(name_to_rgb('red'), message_area)
                     text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
@@ -795,7 +799,8 @@ try:
                 roam_count = 0
                 no_person_count = 0
                 p_detect_count += 1
-                GPIO.output(LED_GPIO_PIN, True)
+                LED_state = True
+                GPIO.output(LED_GPIO_PIN, LED_state)
                 CPUtemp = getCPUtemperature()
                 debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
 
@@ -915,7 +920,17 @@ try:
                     servo_position = set_servo_to_position(servo_position)
                 else:
                     debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
-
+                    debugPrint('LED_state = '+str(LED_state))
+                    if (LED_state == False):
+                        LED_state = True
+                        debugPrint('Turning LED on')
+                        GPIO.output(LED_GPIO_PIN, LED_state)
+                    else:
+                        LED_state = False
+                        debugPrint('Turning LED off')
+                        GPIO.output(LED_GPIO_PIN, LED_state)
+                    time.sleep(0.5)
+                    
                     
 # End of inner While loop
             break
