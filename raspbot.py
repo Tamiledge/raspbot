@@ -12,6 +12,7 @@
 # Jan 2015
 """
 import smbus
+import psutil       # used to get the Rpi temperature
 import sys
 import getopt
 import pigpio
@@ -118,6 +119,9 @@ class PID:
         return self.Derivator
 
 # Constants
+VERBOSE_LOGFILE = 1         # use this to write lots of info to the log file. Useful when running independently.
+                            # normally, you want this off otherwise you'll fill up the disk quickly
+                            
 RASPI_I2C_CHANNEL = 1     # the /dev/i2c device
 OMRON_1 = 0x0a            # 7 bit I2C address of Omron MEMS Temp Sensor D6T-44L
 OMRON_BUFFER_LENGTH = 35      # Omron data buffer size
@@ -127,6 +131,8 @@ DEGREE_UNIT = 'F'         # F = Farenheit, C=Celcius
 MEASUREMENT_WAIT_PERIOD = 0.3     # time between Omron measurements
 SERVO = 1             # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11     # GPIO number (GPIO 11 aka. SCLK)
+LED_GPIO_PIN = 7       # GPIO number that the LED is connected to (BCM GPIO_04 (Pi Hat) is the same as BOARD pin 7)
+                        # See "Raspberry Pi B+ J8 Header" diagram
 DEBUG = 0             # set this to 1 to see debug messages on monitor
 SCREEN_DIMENSIONS = [400, 600]  # setup the IR color window [0]= width [1]= height
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
@@ -193,9 +199,17 @@ import RPi.GPIO as GPIO
 GPIO.setwarnings(False)         # if true, we get warnings about DMA channel in use
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
+GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
 from RPIO import PWM        # for the servo motor
 
 CONNECTED = 0           # true if connected to the internet
+
+def getCPUtemperature():
+#    res = os.popen('vcgencmd measure temp').readline()
+#    return(res.replace("temp=","").replace("'C\n",""))
+    process = subprocess.Popen(['vcgencmd', 'measure_temp'], stdout=PIPE)
+    output, _error = process.communicate()
+    return float(output[output.index('=') + 1:output.index("'")])
 
 # function to get the average value of a list
 def avg(incoming_list):
@@ -353,8 +367,10 @@ def set_servo_to_position (new_position):
                     print 'ERROR: set_servo_to_position L-H=CCW position out of range: '+str(new_position)+' min= '+str(MIN_SERVO_POSITION)+' max = '+str(MAX_SERVO_POSITION)
 
             if DEBUG:
-                print 'Setting servo to final position: '+str(final_position)
+                print 'Setting servo to position: '+str(final_position)
 
+            if VERBOSE_LOGFILE:
+                logfile.write('\r\n'+'Setting servo to position: '+str(final_position)+' at '+str(datetime.now()))
 
         return final_position
 
@@ -542,10 +558,6 @@ if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
 else:
     servo_direction = SERVO_CUR_DIR_CCW     # initially start moving the servo CCW
 
-# Open log file
-logfile = open(LOGFILE_NAME, 'wb')
-logfile.write('\r\nLog file opened at '+str(datetime.now()))
-
 # Initialize screen
 pygame.init()
 font = pygame.font.Font(None, 36)
@@ -579,7 +591,6 @@ if MONITOR:
 
 try:
 # Initialize i2c bus address
-    logfile.write('\r\nInitializing smbus at '+str(datetime.now()))
     i2c_bus = smbus.SMBus(1)
     time.sleep(0.1)                # Wait
 
@@ -599,13 +610,11 @@ try:
     else:
         print 'SERVO is off'
 
+    GPIO.output(LED_GPIO_PIN, True)
 
 # intialize the pigpio library and socket connection to the daemon (pigpiod)
     pi = pigpio.pi()              # use defaults
     version = pi.get_pigpio_version()
-    if DEBUG:
-        print 'PiGPIO version = '+str(version)
-    logfile.write('\r\nPiGPIO version = '+str(version))
 
 # Initialize the selected Omron sensor
     if DEBUG:
@@ -614,8 +623,27 @@ try:
     (omron1_handle, omron1_result) = omron_init(RASPI_I2C_CHANNEL, OMRON_1, pi, i2c_bus) # passing in the i2c address of the sensor
 
     if omron1_handle < 1:
-        crash_msg = '\r\nI2C sensor not found!'
-        crash_and_burn(crash_msg, pygame, servo, logfile)
+        print'\r\nI2C sensor not found! Aborting! Quitting! Stopping! Good bye.'
+        if SERVO:
+            servo.stop_servo(SERVO_GPIO_PIN)
+        pygame.quit()
+        sys.exit()
+
+# Open log file here - reason: the following command will overwrite any previous log file. We
+#   don't want this program to overwrite a log file created when the Rpi is
+#   running independently in case it fails and we have to do a forensic analysis of the failure.
+#   If you disconnect the sensor, the command above will abort the boot sequence and permit viewing
+#   of the log file created during the independent operation of the Rpi.
+
+    CPUtemp = getCPUtemperature()
+    
+    logfile = open(LOGFILE_NAME, 'wb')
+    logfile.write('\r\nLog file opened at '+str(datetime.now()))
+#    logfile.write('\r\nCPU Temp = '+str(getCPUtemperature())+' degrees Celcius')
+    if DEBUG:
+        print 'PiGPIO version = '+str(version)
+#        print '\r\nCPU Temp = '+str(CPUtemp)+' degrees Celcius'
+    logfile.write('\r\nPiGPIO version = '+str(version))
 
 # initialze the music player
     pygame.mixer.init()
@@ -623,6 +651,11 @@ try:
     print 'Looking for a person'
     logfile.write('\r\nLooking for a person at '+str(datetime.now()))
 
+    no_person_count = 0
+    p_detect_count = 0      # This is used to lessen the number of repeat "hello" and "goodbye" messages.
+                            # Once a person is detected, we assume they will be there for a short time,
+                            # so this is used to wait a while before saying goodbye
+                            
     person = 0              # initialize the person tracker
     person_existed_last_time = 0
     first_time = 1
@@ -765,6 +798,7 @@ try:
             if max(temperature_array) > BURN_HAZARD_TEMP:
                 roam_count = 0
                 burn_hazard = 1
+                GPIO.output(LED_GPIO_PIN, True)
                 if MONITOR:
                     screen.fill(name_to_rgb('red'), message_area)
                     text = font.render("WARNING! Burn danger!", 1, name_to_rgb('yellow'))
@@ -785,14 +819,23 @@ try:
                             print 'Played Burn temperature audio'
                     except:
                         continue
+                if VERBOSE_LOGFILE:
+                    logfile.write('\r\n'+"Burn hazard temperature is "+"%.1f"%max(temperature_array)+" degrees"+' at '+str(datetime.now()))
                 
                 break
 
 ###########################
 # Person Detected !
 ###########################
-            elif p_detect:    # Here is where a person is detected
+            elif p_detect :    # Here is where a person is detected
                 roam_count = 0
+                no_person_count = 0
+                p_detect_count += 1
+                GPIO.output(LED_GPIO_PIN, True)
+                if VERBOSE_LOGFILE:
+                    hit_array = get_hit_array(room_temp, temperature_array, servo_position)
+                    logfile.write('\r\nPerson detected! detect cnt: '+str(p_detect_count)+' Hits: '+str(hit_array)+"%.1f"%max(temperature_array)+' degrees. Servo position: '+str(servo_position)+' at '+str(datetime.now()))
+
                 if MONITOR:
                     screen.fill(name_to_rgb('white'), message_area)
                     text = font.render("Hello!", 1, name_to_rgb('red'))
@@ -829,7 +872,7 @@ try:
 ##                            if DEBUG:
 ##                                print 'Played badge audio'
 
-                        time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
+                time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
 
                 person = 1
                 burn_hazard = 0
@@ -839,81 +882,92 @@ try:
 # Nobody Detected !
 ###########################
             else:
-                if MONITOR:
-                    screen.fill(name_to_rgb('white'), message_area)
-                    text = font.render("Waiting...", 1, name_to_rgb('blue'))
-                    textpos = text.get_rect()
-                    textpos.center = message_area_xy
-                    screen.blit(text, textpos)
-# update the screen
-                    pygame.display.update()
+                no_person_count += 1
+                
+                if VERBOSE_LOGFILE:
+                    hit_array = get_hit_array(room_temp, temperature_array, servo_position)
+                    logfile.write('\r\nNo Person! detect cnt: '+str(p_detect_count)+' Hits: '+str(hit_array)+" %.1f"%max(temperature_array)+' degrees. Roam count'+str(roam_count)+' at '+str(datetime.now()))
 
-                person = 0
-                burn_hazard = 0
-
-# put servo in roaming mode
-
-            if SERVO and ROAM and roam_count <= ROAM_MAX:
-
-                roam_count += 1
-
-                if DEBUG:
-                    print 'Servo Type: '+str(SERVO_TYPE),
-                    print ' Servo position: '+str(servo_position),
-                    print ' Servo direction: '+str(servo_direction),
-                    print ' Roam count = '+str(roam_count)
-
-                if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                    if (servo_position <= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
-                        if DEBUG:
-                            print 'CCW limit hit, changing direction'
-                        servo_direction = SERVO_CUR_DIR_CW
-                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                else:
-                    if (servo_position >= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
-                        if DEBUG:
-                            print 'CCW limit hit, changing direction'
-                        servo_direction = SERVO_CUR_DIR_CW
-                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                if (p_detect_count >= 5 or no_person_count >= 5) :    # this is used to lessen the repeate hello-goodbye issue
+                    p_detect_count = 0
+                    no_person_count = 0
+                    GPIO.output(LED_GPIO_PIN, False)
                     
-                if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                    if (servo_position >= SERVO_LIMIT_CW and servo_direction == SERVO_CUR_DIR_CW):
-                        if DEBUG:
-                            print 'CW limit hit, changing direction'
-                        servo_direction = SERVO_CUR_DIR_CCW
-                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                else:
-                    if (servo_position <= SERVO_LIMIT_CW and servo_direction == SERVO_CUR_DIR_CW):
-                        if DEBUG:
-                            print 'CW limit hit, changing direction'
-                        servo_direction = SERVO_CUR_DIR_CCW
-                        #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                    
-                if DEBUG:
-                    print 'Servo: Roaming. Position: '+str(servo_position),
-                if servo_direction == SERVO_CUR_DIR_CCW:
-                    if DEBUG:
-                        print ' Direction: CCW'
-                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                        servo_position -= ROAMING_GRANULARTY
-                    else:
-                        servo_position += ROAMING_GRANULARTY
-                if servo_direction == SERVO_CUR_DIR_CW:
-                    if DEBUG:
-                        print ' Direction: CW'
-                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                        servo_position += ROAMING_GRANULARTY
-                    else:
-                        servo_position -= ROAMING_GRANULARTY
-                  
-                if RAND:
-                    servo_position = random.randint(MIN_SERVO_POSITION, MAX_SERVO_POSITION)
-                    if DEBUG:
-                        print 'Random servo_position: '+str(servo_position)
+                    if MONITOR:
+                        screen.fill(name_to_rgb('white'), message_area)
+                        text = font.render("Waiting...", 1, name_to_rgb('blue'))
+                        textpos = text.get_rect()
+                        textpos.center = message_area_xy
+                        screen.blit(text, textpos)
+    # update the screen
+                        pygame.display.update()
 
-                if DEBUG:
-                    print 'Servo: Setting position to: '+str(servo_position),
-                servo_position = set_servo_to_position(servo_position)
+                    person = 0
+                    burn_hazard = 0
+
+    # put servo in roaming mode
+
+                if SERVO and ROAM and roam_count <= ROAM_MAX:
+
+                    roam_count += 1
+
+                    if DEBUG:
+                        print 'Servo Type: '+str(SERVO_TYPE),
+                        print ' Servo position: '+str(servo_position),
+                        print ' Servo direction: '+str(servo_direction),
+                        print ' Roam count = '+str(roam_count)
+
+                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                        if (servo_position <= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
+                            if DEBUG:
+                                print 'CCW limit hit, changing direction'
+                            servo_direction = SERVO_CUR_DIR_CW
+                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                    else:
+                        if (servo_position >= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
+                            if DEBUG:
+                                print 'CCW limit hit, changing direction'
+                            servo_direction = SERVO_CUR_DIR_CW
+                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                        
+                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                        if (servo_position >= SERVO_LIMIT_CW and servo_direction == SERVO_CUR_DIR_CW):
+                            if DEBUG:
+                                print 'CW limit hit, changing direction'
+                            servo_direction = SERVO_CUR_DIR_CCW
+                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                    else:
+                        if (servo_position <= SERVO_LIMIT_CW and servo_direction == SERVO_CUR_DIR_CW):
+                            if DEBUG:
+                                print 'CW limit hit, changing direction'
+                            servo_direction = SERVO_CUR_DIR_CCW
+                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+                        
+                    if DEBUG:
+                        print 'Servo: Roaming. Position: '+str(servo_position),
+                    if servo_direction == SERVO_CUR_DIR_CCW:
+                        if DEBUG:
+                            print ' Direction: CCW'
+                        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                            servo_position -= ROAMING_GRANULARTY
+                        else:
+                            servo_position += ROAMING_GRANULARTY
+                    if servo_direction == SERVO_CUR_DIR_CW:
+                        if DEBUG:
+                            print ' Direction: CW'
+                        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                            servo_position += ROAMING_GRANULARTY
+                        else:
+                            servo_position -= ROAMING_GRANULARTY
+                      
+                    if RAND:
+                        servo_position = random.randint(MIN_SERVO_POSITION, MAX_SERVO_POSITION)
+                        if DEBUG:
+                            print 'Random servo_position: '+str(servo_position)
+
+                    if DEBUG:
+                        print 'Servo: Setting position to: '+str(servo_position),
+                    servo_position = set_servo_to_position(servo_position)
 
 # End of inner While loop
             break
@@ -923,6 +977,7 @@ try:
 #############################
 
         if fatal_error:
+            logfile.write('\r\nFatal error at '+str(datetime.now()))
             break
 
         if person == 1:
