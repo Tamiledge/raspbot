@@ -165,8 +165,7 @@ SERVO_CUR_DIR_CCW = 2
 ROAMING_GRANULARTY = 50
 HIT_WEIGHT_PERCENT = 0.1
 PERSON_TEMP_SUM_THRESHOLD = 3
-FAR = 180       # the number of microseconds to move the servo when the person is not near cetner
-NEAR = 90      # the number of microseconds to move the servo when the person is near the center
+DETECT_COUNT_THRESH = 3
 
 # Strange things happen: Some servos move CW and others move CCW for the same number.
 # it is possible that the "front" of the servo might be treated differently
@@ -359,6 +358,8 @@ def get_hit_array(room, t_array, s_position):
 
     return h_delta
 
+FAR = 220       # the number of microseconds to move the servo when the person is not near cetner
+NEAR = 120      # the number of microseconds to move the servo when the person is near the center
 def person_position_2_hit(room, t_array, s_position):
     """
     Used to detect a persons presence using the "greater than two algorithm"
@@ -617,7 +618,8 @@ try:
 
     debugPrint('Looking for a person')
 
-    no_person_count = 0
+    no_person_count = 99
+    p_detect = False
     p_detect_count = 0      # This is used to lessen the number of repeat "hello" and "goodbye" messages.
                             # Once a person is detected, we assume they will be there for a short time,
                             # so this is used to wait a while before saying goodbye
@@ -760,8 +762,11 @@ try:
 ###########################
 # Analyze sensor data
 ###########################
-            p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
-            debugPrint('Person detect (p_detect): '+str(p_detect)+' Person position (p_pos): '+str(p_pos))
+
+            if ((p_detect_count >= DETECT_COUNT_THRESH and p_detect_count%DETECT_COUNT_THRESH == 0) or (no_person_count >= DETECT_COUNT_THRESH and no_person_count%DETECT_COUNT_THRESH == 0)):    # this is used to lessen the repeate hello-goodbye issue
+                                                                      # anytime a person is there or not there, measure once in five counts
+                p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+                debugPrint('Person detect (p_detect): '+str(p_detect)+' Person position (p_pos): '+str(p_pos))
 
 ###########################
 # Burn Hazard Detected !
@@ -852,7 +857,8 @@ try:
                 CPUtemp = getCPUtemperature()
                 debugPrint('\r\nNo person count: '+str(no_person_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
 
-                if (p_detect_count >= 5 or no_person_count >= 5) :    # this is used to lessen the repeate hello-goodbye issue
+                if ((p_detect_count >= DETECT_COUNT_THRESH and p_detect_count%DETECT_COUNT_THRESH == 0) or (no_person_count >= DETECT_COUNT_THRESH and no_person_count%DETECT_COUNT_THRESH == 0)) :    # this is used to lessen the repeate hello-goodbye issue
+                                                                      # anytime a person is there or not there, measure once in five counts
                     p_detect_count = 0
                     GPIO.output(LED_GPIO_PIN, False)
                     
@@ -919,15 +925,15 @@ try:
                     debugPrint('Servo: Setting position to: '+str(servo_position))
                     servo_position = set_servo_to_position(servo_position)
                 else:
-                    debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
-                    debugPrint('LED_state = '+str(LED_state))
+#                    debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
+#                    debugPrint('LED_state = '+str(LED_state))
                     if (LED_state == False):
                         LED_state = True
-                        debugPrint('Turning LED on')
+#                        debugPrint('Turning LED on')
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     else:
                         LED_state = False
-                        debugPrint('Turning LED off')
+#                        debugPrint('Turning LED off')
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     time.sleep(0.5)
                     
