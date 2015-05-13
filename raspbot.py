@@ -212,8 +212,8 @@ def play_sound(volume, message):
     pygame.mixer.music.set_volume(volume)         
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
-#    while pygame.mixer.music.get_busy() == True:
-#        continue
+    while pygame.mixer.music.get_busy() == True:
+        continue
 
 def print_temps(temp_list):
     """
@@ -419,10 +419,10 @@ def person_position_quad_hit(room, t_array, s_position):
         # no person detected
         return (False, s_position)
 
-FAR_ONE = 280       
-NEAR_ONE = 140      
-FAR_TWO = 210       
-NEAR_THREE = 70     
+FAR_ONE = 240       
+NEAR_ONE = 100      
+FAR_TWO = 170       
+NEAR_THREE = 30     
 # 0001 hits = FAR_ONE CCW
 # 0010 hits = NEAR_ONE CCW
 # 0100 hits = NEAR_ONE CW
@@ -447,49 +447,49 @@ def person_position_1_hit(room, t_array, s_position):
     if ((hit_array[0] >= 1 or hit_array[0] == 0) and hit_array[1] >= 1 and hit_array[2] >= 1 and (hit_array[3] >= 1 or hit_array[3] == 0)):
         # no change
         return (True, s_position)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] >= 1):
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] >= 2):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - FAR_ONE)
         else:
             return (True, s_position + FAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] == 0):
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 2 and hit_array[3] == 0):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - NEAR_ONE)
         else:
             return (True, s_position + NEAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
+    elif (hit_array[0] == 0 and hit_array[1] >= 2 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + NEAR_ONE)
         else:
             return (True, s_position - NEAR_ONE)
-    elif (hit_array[0] >= 1 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] == 0):
+    elif (hit_array[0] >= 2 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + FAR_ONE)
         else:
             return (True, s_position - FAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] >= 1):
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] >= 2):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - FAR_TWO)
         else:
             return (True, s_position + FAR_TWO)
-    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
+    elif (hit_array[0] >= 2 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + FAR_TWO)
         else:
             return (True, s_position - FAR_TWO)
-    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] >= 1):
+    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] >= 2 and hit_array[3] >= 1):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - NEAR_THREE)
         else:
             return (True, s_position + NEAR_THREE)
-    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] == 0):
+    elif (hit_array[0] >= 1 and hit_array[1] >= 2 and hit_array[2] >= 1 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + NEAR_THREE)
@@ -644,7 +644,7 @@ try:
 # Open log file
 
     logfile = open(LOGFILE_NAME, 'wb')
-    logfile_open_string = '\r\nLog file pre-while-loop opened at '+str(datetime.now())
+    logfile_open_string = '\r\nStartup log file opened at '+str(datetime.now())
     logfile_args_string = '\r\nDEBUG: '+str(DEBUG)+' SERVO: '+str(SERVO)+' MONITOR: '+str(MONITOR)+' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
     logfile.write(logfile_open_string)
     logfile.write(logfile_args_string)
@@ -708,20 +708,19 @@ try:
     MINIMUM_ERROR_GRANULARITY = 50     # the number of microseconds - if the PID error is less than this, the head will stop moving
     previous_pid_error = 0
 
-    HELLO_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello2.mp3"
-    AFTER_HELLO_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-boeing.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-boeing.mp3",  "snd/20150201_chloe-whosthat.mp3", "snd/20150201_chloe-yippee1.mp3"
-    BYEBYE_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-goodbye1.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.mp3"
-    AFTER_BYEBYE_AUDIO = "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-cry1.mp3", "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-loveu.mp3", "snd/20150201_zoe-loveu.mp3"
-
-    HELLO_FILE_NAME = random.choice(HELLO_AUDIO)
-#    HELLO_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/hello_file.mp3"
-    GOODBYE_FILE_NAME = random.choice(BYEBYE_AUDIO)
-#    GOODBYE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/byebye_file.mp3"
-    BADGE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
-    MOVE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/move_file.mp3"
-    BORED_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/bored_file.mp3"
-    BURN_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/burn_file.mp3"
+    HELLO_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
+    AFTER_HELLO_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-sorry.mp3"
+    GOODBYE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.mp3"
+    BADGE_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-badge1.mp3"
+    BURN_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-warning.mp3"
+    CPU_105_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-105a.mp3"
+    CPU_110_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-110a.mp3"
+    CPU_115_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-115a.mp3"
+    CPU_120_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-120a.mp3"
+    CPU_125_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-125a.mp3"
     
+    CPU_105_ON = True       # set to true to test CPU temp warnings, otherwise set to false
+
 ##    if CONNECTED:
 ##    try:
 ##        speakSpeechFromText("Yeay,,,,,, we are connected to the Internet!", "intro.mp3")
@@ -741,20 +740,44 @@ try:
     while True:                 # The main loop
         loop_count += 1
         debugPrint('loop_count = '+str(loop_count))
-        if loop_count >= 6:   # every five minutes, write the log file to disk
+        if loop_count >= 600:   # every five minutes, write the log file to disk
+
+# Check for overtemp
+            CPUtemp = getCPUtemperature()
+            if (CPUtemp >= 105.0):
+                if CPU_105_ON:
+                    play_sound(MAX_VOLUME, CPU_105_FILE_NAME)
+                    debugPrint('Played 105 audio')
+            elif (CPUtemp >= 110.0):
+                play_sound(MAX_VOLUME, CPU_110_FILE_NAME)
+                debugPrint('Played 110 audio')
+            elif (CPUtemp >= 115.0):
+                play_sound(MAX_VOLUME, CPU_115_FILE_NAME)
+                debugPrint('Played 115 audio')
+            elif (CPUtemp >= 120.0):
+                play_sound(MAX_VOLUME, CPU_120_FILE_NAME)
+                debugPrint('Played 120 audio')
+            elif (CPUtemp >= 125.0):
+                play_sound(MAX_VOLUME, CPU_125_FILE_NAME)
+                debugPrint('Played 125 audio')
+
+            debugPrint('\r\nLoop count max reached ('+str(loop_count)+' at '+str(datetime.now()))
             loop_count = 0      # reset the counter
-            logfile.write('\r\nLoop count max reached ('+str(loop_count)+' at '+str(datetime.now()))
-            logfile.write('\r\nClosing log file at '+str(datetime.now()))
-            time.sleep(0.1)     # it appears that you need to give the system a little time to write everything out
+            debugPrint('\r\nClosing log file at '+str(datetime.now()))
+            time.sleep(1)     # it appears that you need to give the system a little time to write everything out
             logfile.close       # for forensic analysis
-            time.sleep(0.1)     # it appears that you need to give the system a little time
+            time.sleep(1)     # it appears that you need to give the system a little time
             logfile = open(LOGFILE_NAME, 'wb')
-            time.sleep(0.1)     # it appears that you need to give the system a little time
-            logfile.write('\r\nLog file re-opened at '+str(datetime.now()))
-            logfile.write(logfile_open_string)
-            logfile.write(logfile_args_string)
-            logfile.write(logfile_temp_string)
-            
+            time.sleep(1)     # it appears that you need to give the system a little time
+            debugPrint('\r\nLog file re-opened at '+str(datetime.now()))
+            debugPrint(logfile_open_string)
+            debugPrint(logfile_args_string)
+            debugPrint(logfile_temp_string)
+
+# start roaming again            
+            no_person_count = 0
+            p_detect_count  = 0
+
         while True:                 # do this loop until a person shows up
          
             time.sleep(MEASUREMENT_WAIT_PERIOD)
@@ -1046,6 +1069,9 @@ try:
 # Play "hello" sound effect
                 play_sound(MAX_VOLUME, HELLO_FILE_NAME)
                 debugPrint('Played hello audio')
+                time.sleep(3)
+                play_sound(MAX_VOLUME, AFTER_HELLO_FILE_NAME)
+                debugPrint('Played after hello audio')
 
                 person_existed_last_time = 1
                 played_hello =1
@@ -1090,16 +1116,6 @@ try:
 
                 played_byebye =1
                 person_existed_last_time = 0
-
-#      if played_hello:
-#         after_hello_message = random.choice(AFTER_HELLO_AUDIO)         
-#         play_sound(MAX_VOLUME, after_hello_message)
-#         played_hello=0
-
-#      if played_byebye:
-#         after_byebye_message = random.choice(AFTER_BYEBYE_AUDIO)
-#         play_sound(MAX_VOLUME, after_byebye_message)
-#         played_byebye=0
 
    # end if
 
