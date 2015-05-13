@@ -144,6 +144,7 @@ MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
 MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
 ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
 ROAM_MAX = 600          # Max number of times to roam between person detections (roughly 0.5 seconds between roams
+LOG_MAX = 1200
 RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
@@ -728,7 +729,7 @@ try:
     CPU_120_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-120a.mp3"
     CPU_125_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-125a.mp3"
     
-    CPU_105_ON = True       # set to true to test CPU temp warnings, otherwise set to false
+    CPU_105_ON = False       # set to true to test CPU temp warnings, otherwise set to false
 
 ##    if CONNECTED:
 ##    try:
@@ -749,7 +750,7 @@ try:
     while True:                 # The main loop
         loop_count += 1
         debugPrint('loop_count = '+str(loop_count))
-        if loop_count >= 600:   # every five minutes, write the log file to disk
+        if loop_count >= LOG_MAX:   # periododically, write the log file to disk
 
 # Check for overtemp
             CPUtemp = getCPUtemperature()
