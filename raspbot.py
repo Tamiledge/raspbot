@@ -212,8 +212,8 @@ def play_sound(volume, message):
     pygame.mixer.music.set_volume(volume)         
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy() == True:
-        continue
+#    while pygame.mixer.music.get_busy() == True:
+#        continue
 
 def print_temps(temp_list):
     """
@@ -450,51 +450,51 @@ def person_position_1_hit(room, t_array, s_position):
     elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] >= 1):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + FAR_ONE)
-        else:
             return (True, s_position - FAR_ONE)
+        else:
+            return (True, s_position + FAR_ONE)
     elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] == 0):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + NEAR_ONE)
-        else:
             return (True, s_position - NEAR_ONE)
+        else:
+            return (True, s_position + NEAR_ONE)
     elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - NEAR_ONE)
-        else:
             return (True, s_position + NEAR_ONE)
+        else:
+            return (True, s_position - NEAR_ONE)
     elif (hit_array[0] >= 1 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - FAR_ONE)
-        else:
             return (True, s_position + FAR_ONE)
+        else:
+            return (True, s_position - FAR_ONE)
     elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] >= 1):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + FAR_TWO)
-        else:
             return (True, s_position - FAR_TWO)
+        else:
+            return (True, s_position + FAR_TWO)
     elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - FAR_TWO)
-        else:
             return (True, s_position + FAR_TWO)
+        else:
+            return (True, s_position - FAR_TWO)
     elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] >= 1):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + NEAR_THREE)
-        else:
             return (True, s_position - NEAR_THREE)
+        else:
+            return (True, s_position + NEAR_THREE)
     elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - NEAR_THREE)
-        else:
             return (True, s_position + NEAR_THREE)
+        else:
+            return (True, s_position - NEAR_THREE)
     else:
         # no person detected
         return (False, s_position)
