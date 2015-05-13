@@ -2,8 +2,17 @@
 """
 # A Python command line tool for a robot based on the Raspberry Pi computer
 # By Greg Griffes http://yottametric.com
-# GNU GPL V3 
-
+# GNU GPL V3
+#
+# This file is automatically run at boot time using the following method:
+# edit the /etc/rc.local file using sudo nano /etc/rc.local
+# add these two lines at the end before "exit 0"
+# sudo pigpiod # starts the pigpio daemon
+# sudo python /home/pi/projects_ggg/raspbot/raspbot.py -nomonitor -roam &
+#
+# The log file created by this program when running independently is located at root (/)
+# about every five minutes the log file is closed and reopened.
+#
 # !!!!!!!!!!!!!!!!!
 # remember to run this as root "sudo ./raspbot" so that DMA can be used
 # for the servo
@@ -447,49 +456,49 @@ def person_position_1_hit(room, t_array, s_position):
     if ((hit_array[0] >= 1 or hit_array[0] == 0) and hit_array[1] >= 1 and hit_array[2] >= 1 and (hit_array[3] >= 1 or hit_array[3] == 0)):
         # no change
         return (True, s_position)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] >= 2):
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] >= 1):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - FAR_ONE)
         else:
             return (True, s_position + FAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 2 and hit_array[3] == 0):
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] == 0):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - NEAR_ONE)
         else:
             return (True, s_position + NEAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] >= 2 and hit_array[2] == 0 and hit_array[3] == 0):
+    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + NEAR_ONE)
         else:
             return (True, s_position - NEAR_ONE)
-    elif (hit_array[0] >= 2 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] == 0):
+    elif (hit_array[0] >= 1 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + FAR_ONE)
         else:
             return (True, s_position - FAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] >= 2):
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] >= 1):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - FAR_TWO)
         else:
             return (True, s_position + FAR_TWO)
-    elif (hit_array[0] >= 2 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
+    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + FAR_TWO)
         else:
             return (True, s_position - FAR_TWO)
-    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] >= 2 and hit_array[3] >= 1):
+    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] >= 1):
         # move CCW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position - NEAR_THREE)
         else:
             return (True, s_position + NEAR_THREE)
-    elif (hit_array[0] >= 1 and hit_array[1] >= 2 and hit_array[2] >= 1 and hit_array[3] == 0):
+    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] == 0):
         # move CW
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             return (True, s_position + NEAR_THREE)
