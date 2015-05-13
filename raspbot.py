@@ -12,7 +12,6 @@
 # Jan 2015
 """
 import smbus
-import psutil       # used to get the Rpi temperature
 import sys
 import getopt
 import pigpio
@@ -119,9 +118,6 @@ class PID:
         return self.Derivator
 
 # Constants
-VERBOSE_LOGFILE = 1         # use this to write lots of info to the log file. Useful when running independently.
-                            # normally, you want this off otherwise you'll fill up the disk quickly
-                            
 RASPI_I2C_CHANNEL = 1     # the /dev/i2c device
 OMRON_1 = 0x0a            # 7 bit I2C address of Omron MEMS Temp Sensor D6T-44L
 OMRON_BUFFER_LENGTH = 35      # Omron data buffer size
@@ -152,11 +148,6 @@ LOW_TO_HIGH_IS_COUNTERCLOCKWISE = 0
 LOW_TO_HIGH_IS_CLOCKWISE = 1
 HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE
 SERVO_TYPE = HITEC_HS55
-
-CENTER = 1500                  # Facing straign forward
-POSVECT_MIN = 0                 # POSVECT is the vector position of the robot head
-POSVECT_MAX = 2000              # POSVECT is a value between MIN and MAX where MIN is full clockwise and MAX is full CCW
-POSVECT_OFFSET = 600            # When POSVECT is added to the offset, the number can be used to position the servo
 
 CTR_SERVO_POSITION = 1500
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
@@ -192,7 +183,7 @@ else:
     X_DELTA_3 = 200
 
 # Logfile
-LOGFILE_NAME = 'Raspbot_logfile.txt'
+LOGFILE_NAME = 'raspbot_logfile.txt'
 
 import RPi.GPIO as GPIO
 GPIO.setwarnings(False)         # if true, we get warnings about DMA channel in use
@@ -428,6 +419,86 @@ def person_position_quad_hit(room, t_array, s_position):
         # no person detected
         return (False, s_position)
 
+FAR_ONE = 280       
+NEAR_ONE = 140      
+FAR_TWO = 210       
+NEAR_THREE = 70     
+# 0001 hits = FAR_ONE CCW
+# 0010 hits = NEAR_ONE CCW
+# 0100 hits = NEAR_ONE CW
+# 1000 hits = FAR_ONE CW
+#
+# 0011 hits = FAR_TWO CCW
+# 0110 hits = no change
+# 1100 hits = FAR_TWO CW
+#
+# 0111 hits = NEAR_THREE CCW
+# 1110 hits = NEAR_THREE CW
+# 1111 hits = no change
+
+def person_position_1_hit(room, t_array, s_position):
+    """
+    Used to detect a persons presence using the "greater than one algorithm"
+    returns (TRUE/FALSE - person detected, whole integer - approximate person position)
+    """
+
+    hit_array = get_hit_array(room, t_array, s_position)
+
+    if ((hit_array[0] >= 1 or hit_array[0] == 0) and hit_array[1] >= 1 and hit_array[2] >= 1 and (hit_array[3] >= 1 or hit_array[3] == 0)):
+        # no change
+        return (True, s_position)
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] >= 1):
+        # move CCW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position + FAR_ONE)
+        else:
+            return (True, s_position - FAR_ONE)
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] == 0):
+        # move CCW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position + NEAR_ONE)
+        else:
+            return (True, s_position - NEAR_ONE)
+    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
+        # move CW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position - NEAR_ONE)
+        else:
+            return (True, s_position + NEAR_ONE)
+    elif (hit_array[0] >= 1 and hit_array[1] == 0 and hit_array[2] == 0 and hit_array[3] == 0):
+        # move CW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position - FAR_ONE)
+        else:
+            return (True, s_position + FAR_ONE)
+    elif (hit_array[0] == 0 and hit_array[1] == 0 and hit_array[2] >= 1 and hit_array[3] >= 1):
+        # move CCW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position + FAR_TWO)
+        else:
+            return (True, s_position - FAR_TWO)
+    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] == 0 and hit_array[3] == 0):
+        # move CW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position - FAR_TWO)
+        else:
+            return (True, s_position + FAR_TWO)
+    elif (hit_array[0] == 0 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] >= 1):
+        # move CCW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position + NEAR_THREE)
+        else:
+            return (True, s_position - NEAR_THREE)
+    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and hit_array[2] >= 1 and hit_array[3] == 0):
+        # move CW
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            return (True, s_position - NEAR_THREE)
+        else:
+            return (True, s_position + NEAR_THREE)
+    else:
+        # no person detected
+        return (False, s_position)
+
 def downloadFile(url, fileName):
     fp = open(fileName, "wb")
     curl = pycurl.Curl()
@@ -524,27 +595,11 @@ px=[0]*4
 py=[0]*4
 omron_error_count = 0
 omron_read_count = 0
-servo_position = CENTER                 # initialize the servo to face directly forward
+servo_position = CTR_SERVO_POSITION                 # initialize the servo to face directly forward
 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
     servo_direction = SERVO_CUR_DIR_CW     # initially start moving the servo CCW
 else:
     servo_direction = SERVO_CUR_DIR_CCW     # initially start moving the servo CCW
-
-# Open log file
-
-logfile = open(LOGFILE_NAME, 'wb')
-logfile_open_string = '\r\nLog file initially opened at '+str(datetime.now())
-logfile_args_string = '\r\nDEBUG: '+str(DEBUG)+' SERVO: '+str(SERVO)+' MONITOR: '+str(MONITOR)+' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
-logfile.write(logfile_open_string)
-logfile.write(logfile_args_string)
-
-CPUtemp = getCPUtemperature()
-logfile_temp_string = '\r\nInitial CPU Temperature = '+str(CPUtemp)
-logfile.write(logfile_temp_string)
-    
-if DEBUG:
-    print 'Opening log file: '+LOGFILE_NAME
-    print 'CPU temperature = '+str(CPUtemp)
 
 # Initialize screen
 pygame.init()
@@ -561,7 +616,6 @@ try:
         print 'DEBUG switch is on'
     if SERVO:
 # Initialize servo position
-        debugPrint('Servo: initializing servo')
         GPIO.setmode(GPIO.BOARD)
         GPIO.setup(SERVO_GPIO_PIN,GPIO.OUT)
         servo = PWM.Servo()
@@ -575,20 +629,36 @@ try:
 # intialize the pigpio library and socket connection to the daemon (pigpiod)
     pi = pigpio.pi()              # use defaults
     version = pi.get_pigpio_version()
-    logfile.write('\r\nPiGPIO version = '+str(version))
-    debugPrint('PiGPIO version = '+str(version))
 
 # Initialize the selected Omron sensor
-    debugPrint('Initializing Person Sensor')
 
     (omron1_handle, omron1_result) = omron_init(RASPI_I2C_CHANNEL, OMRON_1, pi, i2c_bus) # passing in the i2c address of the sensor
 
     if omron1_handle < 1:
-        debugPrint('\r\nI2C sensor not found! Aborting! Quitting! Stopping! Good bye.')
+#        debugPrint('\r\nI2C sensor not found! Aborting! Quitting! Stopping! Good bye.')
         if SERVO:
             servo.stop_servo(SERVO_GPIO_PIN)
         pygame.quit()
         sys.exit()
+
+# Open log file
+
+    logfile = open(LOGFILE_NAME, 'wb')
+    logfile_open_string = '\r\nLog file pre-while-loop opened at '+str(datetime.now())
+    logfile_args_string = '\r\nDEBUG: '+str(DEBUG)+' SERVO: '+str(SERVO)+' MONITOR: '+str(MONITOR)+' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
+    logfile.write(logfile_open_string)
+    logfile.write(logfile_args_string)
+
+    CPUtemp = getCPUtemperature()
+    logfile_temp_string = '\r\nInitial CPU Temperature = '+str(CPUtemp)
+    logfile.write(logfile_temp_string)
+        
+    if DEBUG:
+        print 'Opening log file: '+LOGFILE_NAME
+        print 'CPU temperature = '+str(CPUtemp)
+
+    logfile.write('\r\nPiGPIO version = '+str(version))
+    debugPrint('PiGPIO version = '+str(version))
 
 # setup the IR color window
     if MONITOR:
@@ -669,19 +739,22 @@ try:
 #############################
     loop_count = 0
     while True:                 # The main loop
-        if MONITOR == 0:
-            loop_count += 1
-            if loop_count >= 600:   # every five minutes, write the log file to disk
-                logfile.write('\r\nLoop count max reached ('+str(loop_count)+' at '+str(datetime.now()))
-                logfile.write('\r\nClosing log file at '+str(datetime.now()))
-                loop_count = 0      # do this when running independently
-                logfile.close       # for forensic analysis
-                logfile = open(LOGFILE_NAME, 'wb')
-                logfile.write('\r\nLog file re-opened at '+str(datetime.now()))
-                logfile.write(logfile_open_string)
-                logfile.write(logfile_args_string)
-                logfile.write(logfile_temp_string)
-                
+        loop_count += 1
+        debugPrint('loop_count = '+str(loop_count))
+        if loop_count >= 6:   # every five minutes, write the log file to disk
+            loop_count = 0      # reset the counter
+            logfile.write('\r\nLoop count max reached ('+str(loop_count)+' at '+str(datetime.now()))
+            logfile.write('\r\nClosing log file at '+str(datetime.now()))
+            time.sleep(0.1)     # it appears that you need to give the system a little time to write everything out
+            logfile.close       # for forensic analysis
+            time.sleep(0.1)     # it appears that you need to give the system a little time
+            logfile = open(LOGFILE_NAME, 'wb')
+            time.sleep(0.1)     # it appears that you need to give the system a little time
+            logfile.write('\r\nLog file re-opened at '+str(datetime.now()))
+            logfile.write(logfile_open_string)
+            logfile.write(logfile_args_string)
+            logfile.write(logfile_temp_string)
+            
         while True:                 # do this loop until a person shows up
          
             time.sleep(MEASUREMENT_WAIT_PERIOD)
@@ -765,7 +838,7 @@ try:
 
             if ((p_detect_count >= DETECT_COUNT_THRESH and p_detect_count%DETECT_COUNT_THRESH == 0) or (no_person_count >= DETECT_COUNT_THRESH and no_person_count%DETECT_COUNT_THRESH == 0)):    # this is used to lessen the repeate hello-goodbye issue
                                                                       # anytime a person is there or not there, measure once in five counts
-                p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+                p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
                 debugPrint('Person detect (p_detect): '+str(p_detect)+' Person position (p_pos): '+str(p_pos))
 
 ###########################
