@@ -143,8 +143,8 @@ SCREEN_DIMENSIONS = [400, 600]  # setup the IR color window [0]= width [1]= heig
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
 MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
 ROAM = 0                        # if true, robot will "roam" looking for a heat signature 
-ROAM_MAX = 10          # Max number of times to roam between person detections (roughly 0.5 seconds between roams
-LOG_MAX = 20
+ROAM_MAX = 600          # Max number of times to roam between person detections (roughly 0.5 seconds between roams
+LOG_MAX = 1200
 RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100          # temperature at which a warning is given
 TEMPMARGIN = 5            # number of degrees F greater than room temp to detect a person
@@ -332,7 +332,7 @@ def get_hit_array(room, t_array, s_position):
     """
     Used to fill a 4x4 array with a person "hit" temperature logical value
     """
-    hit_count = 0
+    hitCount = 0
 
     debugPrint('person temp threshold = '+str(PERSON_TEMP_THRESHOLD))
 
@@ -344,6 +344,7 @@ def get_hit_array(room, t_array, s_position):
         if (t_array[i] > PERSON_TEMP_THRESHOLD and t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
             t_delta[i] = t_array[i] - PERSON_TEMP_THRESHOLD
             hit_count[i] += 1
+            hitCount += 1
             
 #    debugPrint('Hit count = '+str(hit_count))
     debugPrint('Temperature deltas')
@@ -357,7 +358,7 @@ def get_hit_array(room, t_array, s_position):
 
     debugPrint('hit count delta: '+str(h_delta[0])+str(h_delta[1])+str(h_delta[2])+str(h_delta[3]))
 
-    return h_delta
+    return h_delta, hitCount
 
 FAR = 220       # the number of microseconds to move the servo when the person is not near cetner
 NEAR = 120      # the number of microseconds to move the servo when the person is near the center
@@ -367,7 +368,7 @@ def person_position_2_hit(room, t_array, s_position):
     returns (TRUE/FALSE - person detected, whole integer - approximate person position)
     """
 
-    hit_array = get_hit_array(room, t_array, s_position)
+    hit_array, hitCnt = get_hit_array(room, t_array, s_position)
 
 # First, look for > two hits in a single column
     if (hit_array[1] >= 2 and hit_array[2] >= 2):
@@ -407,7 +408,7 @@ def person_position_quad_hit(room, t_array, s_position):
     returns (TRUE/FALSE - person detected, whole integer - approximate person position)
     """
 
-    hit_array = get_hit_array(room, t_array, s_position)
+    hit_array, hitCnt = get_hit_array(room, t_array, s_position)
 
 # First, look for center quad hits
     if (hit_array[1] >= 2 and hit_array[2] >= 2):
@@ -452,7 +453,7 @@ def person_position_1_hit(room, t_array, s_position):
     returns (TRUE/FALSE - person detected, whole integer - approximate person position)
     """
 
-    hit_array = get_hit_array(room, t_array, s_position)
+    hit_array, hitCnt = get_hit_array(room, t_array, s_position)
 
     if ((hit_array[0] >= 1 or hit_array[0] == 0) and hit_array[1] >= 1 and hit_array[2] >= 1 and (hit_array[3] >= 1 or hit_array[3] == 0)):
         # no change
@@ -547,11 +548,80 @@ def getCPUtemperature():
     return temp_degF
 
 def debugPrint(message):
-    now_string = str(datetime.now())
+    str nowString = str(datetime.now())
     if DEBUG and MONITOR:
-        print now_string+': '+message
-    logfile.write('\r\n'+now_string+': '+message)
+        print nowString+': '+message
+    logfile.write('\r\n'+nowString+': '+message)
     
+def moveHead(position, servo_pos):
+    if SERVO:
+# face the servo twoards the heat
+        pid_controller.setPoint(position)                      # setpoint is the desired position
+        pid_error = pid_controller.update(servo_pos)         # process variable is current position
+        debugPrint('Des Pos: '+str(position)+' Cur Pos: '+str(servo_pos)+' PID Error: '+str(pid_error))
+
+# make the robot turn its head to the person
+# if previous error is the same absolute value as the current error, then we are oscillating - stop it
+        if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
+            previous_pid_error = pid_error
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                servo_position += pid_error
+            else:
+                servo_position -= pid_error
+                           
+        servo_position = set_servo_to_position(servo_position)
+
+        time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
+
+def sayHello:
+    if MONITOR:
+        screen.fill(name_to_rgb('white'), message_area)
+        text = font.render("Hello!", 1, name_to_rgb('red'))
+        textpos = text.get_rect()
+        textpos.center = message_area_xy
+        screen.blit(text, textpos)
+# update the screen
+        pygame.display.update()
+
+    debugPrint('************************** Hello Person! **************************')
+
+# Play "hello" sound effect
+    play_sound(MAX_VOLUME, HELLO_FILE_NAME)
+    debugPrint('Played hello audio')
+#    time.sleep(1)
+#    play_sound(MAX_VOLUME, AFTER_HELLO_FILE_NAME)
+#    debugPrint('Played after hello audio')
+
+    if CONNECTED:
+        try:
+            speakSpeechFromText("The room temperature is "+"%.1f"%room_temp+" degrees fahrenheit", "rtemp.mp3")
+            play_sound(MAX_VOLUME, "rtemp.mp3")
+
+            #speakSpeechFromText("and your temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
+            #play_sound(MAX_VOLUME, "mtemp.mp3")
+        except:
+            continue
+
+def sayGoodBye:
+    if MONITOR:
+        screen.fill(name_to_rgb('white'), message_area)
+        text = font.render("Good Bye!", 1, name_to_rgb('red'))
+        textpos = text.get_rect()
+        textpos.center = message_area_xy
+        screen.blit(text, textpos)
+# update the screen
+        pygame.display.update()
+
+    debugPrint('************************** Good Bye Person! **************************')
+
+# Play "bye bye" sound effect
+    #byebye_message = random.choice(BYEBYE_FILE_NAME)
+    play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+    debugPrint('Played badge audio')
+
+    play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
+    debugPrint('Played bye audio')
+
 
 ###############################
 #
@@ -605,6 +675,9 @@ px=[0]*4
 py=[0]*4
 omron_error_count = 0
 omron_read_count = 0
+previousHitCnt = 0
+hitCnt = 0
+hit_array=[0]*4
 servo_position = CTR_SERVO_POSITION                 # initialize the servo to face directly forward
 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
     servo_direction = SERVO_CUR_DIR_CW     # initially start moving the servo CCW
@@ -743,6 +816,54 @@ try:
 ##        logfile.write('\r\nNOT connected to the Internet')        
 ##        CONNECTED = 0
         
+###########################
+# Analyze sensor data
+###########################
+#
+# Sensor data is hard to evaluate. Sometimes there is a weak signal that appears
+#     to light up single array cells. In addition, the cells are not a perfect
+#     4x4 array. The best image I can describe is that each sensor in the array
+#     has a detection area that looks like a lobe reaching out from the sensor.
+#     As a result of these "lobes", there are dead spots inbetween sensors. Also,
+#     the lobes are not perfectly symetrical; I measured one lobe as having a
+#     10% offset from an adjacent lobe at 10" away from the sensor. That is the
+#     hot spot of one lobe was off by 1" compared to an adjacent lobe.
+#
+# In addition, the further away an object is, the lower its temperature. 
+#     Therefore, what temperature threshold is considered a person? For this
+#     program, the room temp sensor is used as a baseline threshold. Anything
+#     below the room temp is considered "background radiation" because when there
+#     there is no person or heat source, the sensors measure a lower temperature
+#     than room temp (e.g. room temp = 70F, sensors are measuring around 66F).
+#     As a person appears, some sensors start measuring above room temp. So,
+#     who knows if room temp is a good threshold or not? In my program, I add
+#     a fudge factor to room temp which requires a person to get closer to the
+#     sensor. Therefore, room temp plus fudge factor results in what I call a
+#     "hit".
+#
+# Now, there are other complicating factors. A person's clothing will shield
+#     temperature, so, the sensors mainly "see" face and hands as a person.
+#     A coffee cup, light bulb, candle, or any other odd heat source can light
+#     up one of the sensors and if close enough, can trigger what I call a burn
+#     hazard. Therefore, I have another threshold, over the person temperature
+#     which is used to say that this cannot be a person, it must be a fire.
+#     Burn threshold is about 100F.
+#
+# As a result of this behavior, it is really hard to say when a person is there
+#     much less, where is the person (to the right or to the left)? As such,
+#     using the raw threshold to say hello or goodbye results in many false
+#     positives and true negatives. As a result, I have implemented a state
+#     machine so that the sensor can be used in graduated levels to get to a
+#     where it knows for sure that a person is in front and can say hello with
+#     confidence.
+#
+STATE_NOTHING = 0
+STATE_POSSIBLE = 1
+STATE_LIKELY = 2
+STATE_PROBABLY = 3
+STATE_DETECTED = 4
+personState = STATE_NOTHING
+
 #############################
 # Main while loop
 #############################
@@ -750,6 +871,8 @@ try:
     while True:                 # The main loop
         loop_count += 1
         debugPrint('loop_count = '+str(loop_count))
+        CPUtemp = getCPUtemperature()
+        debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
         if loop_count >= LOG_MAX:   # periododically, write the log file to disk
 
 # Check for overtemp
@@ -870,10 +993,13 @@ try:
 # Analyze sensor data
 ###########################
 
-            if ((p_detect_count >= DETECT_COUNT_THRESH and p_detect_count%DETECT_COUNT_THRESH == 0) or (no_person_count >= DETECT_COUNT_THRESH and no_person_count%DETECT_COUNT_THRESH == 0)):    # this is used to lessen the repeate hello-goodbye issue
-                                                                      # anytime a person is there or not there, measure once in five counts
-                p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
-                debugPrint('Person detect (p_detect): '+str(p_detect)+' Person position (p_pos): '+str(p_pos))
+#            if ((p_detect_count >= DETECT_COUNT_THRESH and p_detect_count%DETECT_COUNT_THRESH == 0) or (no_person_count >= DETECT_COUNT_THRESH and no_person_count%DETECT_COUNT_THRESH == 0)):    # this is used to lessen the repeate hello-goodbye issue
+#                                                                      # anytime a person is there or not there, measure once in five counts
+#                p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+#                debugPrint('Person detect (p_detect): '+str(p_detect)+' Person position (p_pos): '+str(p_pos))
+
+            previousHitCnt = hitCnt
+            hit_array, hitCnt = get_hit_array(room, t_array, s_position)
 
 ###########################
 # Burn Hazard Detected !
@@ -905,81 +1031,31 @@ try:
                 break
 
 ###########################
-# Person Detected !
+# No Person Detected
 ###########################
-            elif p_detect :    # Here is where a person is detected
-                roam_count = 0
-                no_person_count = 0
-                p_detect_count += 1
-                LED_state = True
+# State 0: NOTHING - no heat source in view
+#     Event 0: No change - outcome: continue waiting for a person
+#     Event 1: One or more sensors cross the person threshold - move to State 1
+#
+            elif (personState == STATE_NOTHING):
+                no_person_count += 1
+                p_detect_count = 0
+                person = 0
+                burn_hazard = 0
+                LED_state = False
                 GPIO.output(LED_GPIO_PIN, LED_state)
-                CPUtemp = getCPUtemperature()
-                debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
-
                 if MONITOR:
                     screen.fill(name_to_rgb('white'), message_area)
-                    text = font.render("Hello!", 1, name_to_rgb('red'))
+                    text = font.render("Waiting...", 1, name_to_rgb('blue'))
                     textpos = text.get_rect()
                     textpos.center = message_area_xy
                     screen.blit(text, textpos)
-# update the screen
-                    pygame.display.update()
-
-                if SERVO:
-# face the servo twoards the heat
-                    pid_controller.setPoint(p_pos)                      # setpoint is the desired position
-                    pid_error = pid_controller.update(servo_position)         # process variable is current position
-                    debugPrint('Des Pos: '+str(p_pos)+' Cur Pos: '+str(servo_position)+' PID Error: '+str(pid_error))
-
-# make the robot turn its head to the person
-# if previous error is the same absolute value as the current error, then we are oscillating - stop it
-                    if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
-                        previous_pid_error = pid_error
-                        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                            servo_position += pid_error
-                        else:
-                            servo_position -= pid_error
-                           
-                        servo_position = set_servo_to_position(servo_position)
-##                        play_sound(MAX_VOLUME, MOVE_FILE_NAME)
-##                        if DEBUG:
-##                            print 'Played move audio'
-##                        if (pid_error < -100):
-##                            play_sound(MAX_VOLUME, BADGE_FILE_NAME)
-##                            if DEBUG:
-##                                print 'Played badge audio'
-
-                time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
-
-                person = 1
-                burn_hazard = 0
-                break
-
-###########################
-# Nobody Detected !
-###########################
-            else:
-                no_person_count += 1
-                
-                CPUtemp = getCPUtemperature()
-                debugPrint('\r\nNo person count: '+str(no_person_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
-
-                if ((p_detect_count >= DETECT_COUNT_THRESH and p_detect_count%DETECT_COUNT_THRESH == 0) or (no_person_count >= DETECT_COUNT_THRESH and no_person_count%DETECT_COUNT_THRESH == 0)) :    # this is used to lessen the repeate hello-goodbye issue
-                                                                      # anytime a person is there or not there, measure once in five counts
-                    p_detect_count = 0
-                    GPIO.output(LED_GPIO_PIN, False)
-                    
-                    if MONITOR:
-                        screen.fill(name_to_rgb('white'), message_area)
-                        text = font.render("Waiting...", 1, name_to_rgb('blue'))
-                        textpos = text.get_rect()
-                        textpos.center = message_area_xy
-                        screen.blit(text, textpos)
     # update the screen
-                        pygame.display.update()
-
-                    person = 0
-                    burn_hazard = 0
+                    pygame.display.update()
+                if (hitCnt == 0):
+                    personState = STATE_NOTHING
+                else:
+                    personState = STATE_POSSIBLE
 
     # put servo in roaming mode
 
@@ -1043,93 +1119,103 @@ try:
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     time.sleep(0.5)
                     
-                    
+###########################
+# Possible Person Detected
+###########################
+# State 1: Possible person in view - one or more sensors had a hit
+#     Event 0: No hits - blip, move to State 0
+#     Event 1: One hit still - move head to try to center on the hit, State 0
+#     Event 2: More than one hit - state 2
+#
+            elif (personState == STATE_POSSIBLE):
+                no_person_count += 1
+                if (hitCnt == 0):
+                    personState = STATE_NOTHING
+                elif (hitCnt = 1):
+                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+                    moveHead(p_pos, servo_position)
+                    personState = STATE_NOTHING
+                else:
+                    personState = STATE_LIKELY
+###########################
+# Likely Person Detected
+###########################
+# State 2: Likely person in view - more than one sensor had a hit
+#     Event 0: No hits - blip, move to State 1
+#     Event 1: One hit - noise, no change
+#     Event 2: more than one sensor still has a hit, move head, State 3
+#
+            elif (personState == STATE_LIKELY):
+                no_person_count += 1
+                if (hitCnt == 0):
+                    personState = STATE_POSSIBLE
+                elif (hitCnt = 1):
+                    personState = STATE_LIKELY
+                else:
+                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+                    moveHead(p_pos, servo_position)
+                    personState = STATE_PROBABLE
+###########################
+# Probable Person Detected
+###########################
+# State 3: Probably a person in view - twice in a row, more than one sensor
+#     Event 0: No hits - noise, move to State 2
+#     Event 1: One hit - noise, move to state 2
+#     Event 2: more than one sensor still has a hit, move head, say hello, State 4
+#
+            elif (personState == STATE_PROBABLE):
+                if (hitCnt == 0):
+                    personState = STATE_LIKELY
+                elif (hitCnt = 1):
+                    personState = STATE_LIKELY
+                else:
+                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+                    moveHead(p_pos, servo_position)
+                    sayHello()
+                    personState = STATE_DETECTED
+###########################
+# Person Detected !
+###########################
+# State 4: Person detected
+#     Event 0: No hits - person left, say goodbye, move to state 0
+#     Event 1: One hit - person left, say goodbye, move to state 1
+#     Event 2: more than one sensor, move head to position, stay in State 4
+#     
+            elif (personState == STATE_DETECTED):
+                roam_count = 0
+                no_person_count = 0
+                burn_hazard = 0
+                LED_state = True
+                GPIO.output(LED_GPIO_PIN, LED_state)
+                p_detect_count += 1
+                CPUtemp = getCPUtemperature()
+                debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
+                if (hitCnt == 0):
+                    sayGoodBye()
+                    personState = STATE_NOTHING
+                elif (hitCnt = 1):
+                    sayGoodBye()
+                    personState = STATE_NOTHING
+                else:
+                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+                    moveHead(p_pos, servo_position)
+                    personState = STATE_DETECTED
+###########################
+# Invalid state
+###########################
+            else:
+                personState = STATE_NOTHING
+                
 # End of inner While loop
             break
+
+    if fatal_error:
+        logfile.write('\r\nFatal error at '+str(datetime.now()))
+        break
 
 #############################
 # End main while loop
 #############################
-
-        if fatal_error:
-            logfile.write('\r\nFatal error at '+str(datetime.now()))
-            break
-
-        if person == 1:
-            if person_existed_last_time == 0:           # person detected for the first time
-
-                if MONITOR:
-                    screen.fill(name_to_rgb('white'), message_area)
-                    text = font.render("Hello!", 1, name_to_rgb('red'))
-                    textpos = text.get_rect()
-                    textpos.center = message_area_xy
-                    screen.blit(text, textpos)
-# update the screen
-                    pygame.display.update()
-
-                debugPrint('************************** Hello Person! **************************')
-
-# Move head
-#            if SERVO:
-#               if DEBUG:
-#                  print 'Servo: Facing Person'
-#               servo.set_servo(SERVO_GPIO_PIN, CCW_HALF)
-#               time.sleep(0.5)         # Wait for the temps to normalize
-
-# Play "hello" sound effect
-                play_sound(MAX_VOLUME, HELLO_FILE_NAME)
-                debugPrint('Played hello audio')
-                time.sleep(3)
-                play_sound(MAX_VOLUME, AFTER_HELLO_FILE_NAME)
-                debugPrint('Played after hello audio')
-
-                person_existed_last_time = 1
-                played_hello =1
-
-                if CONNECTED:
-                    try:
-                        speakSpeechFromText("The room temperature is "+"%.1f"%room_temp+" degrees fahrenheit", "rtemp.mp3")
-                        play_sound(MAX_VOLUME, "rtemp.mp3")
-
-                        #speakSpeechFromText("and your temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
-                        #play_sound(MAX_VOLUME, "mtemp.mp3")
-                    except:
-                        continue
-
-        else:
-            if person_existed_last_time == 1:           # person moved away from the device
-                if MONITOR:
-                    screen.fill(name_to_rgb('white'), message_area)
-                    text = font.render("Bye bye!", 1, name_to_rgb('red'))
-                    textpos = text.get_rect()
-                    textpos.center = message_area_xy
-                    screen.blit(text, textpos)
-# update the screen
-                    pygame.display.update()
-
-                debugPrint('************************** Bye Bye Person! **************************')
-
-# Move head
-#            if SERVO:
-#               if DEBUG:
-#                  print 'Servo: Facing AWAY'
-#               servo.set_servo(SERVO_GPIO_PIN, CW_HALF)
-#               time.sleep(0.5)         # Wait for the temps to normalize
-
-# Play "bye bye" sound effect
-                #byebye_message = random.choice(BYEBYE_FILE_NAME)
-                play_sound(MAX_VOLUME, BADGE_FILE_NAME)
-                debugPrint('Played badge audio')
-
-                play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
-                debugPrint('Played bye audio')
-
-                played_byebye =1
-                person_existed_last_time = 0
-
-   # end if
-
-# end of main loop
 
 except KeyboardInterrupt:
     crash_msg = '\r\nKeyboard interrupt; quitting'
