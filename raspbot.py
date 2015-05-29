@@ -855,6 +855,7 @@ try:
     STATE_PROBABLE = 3
     STATE_DETECTED = 4
     personState = STATE_NOTHING
+    prevPersonState = STATE_NOTHING
 
 #############################
 # Main while loop
@@ -1111,6 +1112,8 @@ try:
 #                        debugPrint('Turning LED off')
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     time.sleep(0.5)
+
+                prevPersonState = STATE_NOTHING
                     
 ###########################
 # Possible Person Detected
@@ -1126,11 +1129,14 @@ try:
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_NOTHING
                 elif (hitCnt == 1 and previousHitCnt >= 1):
-                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
-                    servo_position = moveHead(p_pos, servo_position)
+#                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+#                    servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_NOTHING
                 else:
                     personState = STATE_LIKELY
+
+                prevPersonState = STATE_POSSIBLE
+                
 ###########################
 # Likely Person Detected
 ###########################
@@ -1147,9 +1153,12 @@ try:
                 elif (hitCnt == 1 and previousHitCnt >= 1):
                     personState = STATE_LIKELY
                 else:
-                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
-                    servo_position = moveHead(p_pos, servo_position)
+#                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+#                    servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_PROBABLE
+
+                prevPersonState = STATE_LIKELY
+
 ###########################
 # Probable Person Detected
 ###########################
@@ -1169,6 +1178,9 @@ try:
                     servo_position = moveHead(p_pos, servo_position)
                     sayHello()
                     personState = STATE_DETECTED
+
+                prevPersonState = STATE_PROBABLE
+
 ###########################
 # Person Detected !
 ###########################
@@ -1197,6 +1209,9 @@ try:
                     p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_DETECTED
+
+                prevPersonState = STATE_DETECTED
+
 ###########################
 # Invalid state
 ###########################
