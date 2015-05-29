@@ -1120,7 +1120,7 @@ try:
 ###########################
 # State 1: Possible person in view - one or more sensors had a hit
 #     Event 0: No hits - blip, move to State 0
-#     Event 1: One hit still - move head to try to center on the hit, State 0
+#     Event 1: One hit still - move head to try to center on the hit, State 1
 #     Event 2: More than one hit - state 2
 #
             elif (personState == STATE_POSSIBLE):
@@ -1129,9 +1129,9 @@ try:
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_NOTHING
                 elif (hitCnt == 1 and previousHitCnt >= 1):
-#                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
 #                    servo_position = moveHead(p_pos, servo_position)
-                    personState = STATE_NOTHING
+#                    personState = STATE_POSSIBLE
                 else:
                     personState = STATE_LIKELY
 
@@ -1151,10 +1151,12 @@ try:
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_POSSIBLE
                 elif (hitCnt == 1 and previousHitCnt >= 1):
-                    personState = STATE_LIKELY
+                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
+#                    personState = STATE_LIKELY
                 else:
-#                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
-#                    servo_position = moveHead(p_pos, servo_position)
+                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_PROBABLE
 
                 prevPersonState = STATE_LIKELY
@@ -1172,9 +1174,11 @@ try:
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_LIKELY
                 elif (hitCnt == 1 and previousHitCnt >= 1):
-                    personState = STATE_LIKELY
-                else:
                     p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
+#                    personState = STATE_LIKELY
+                else:
+                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
                     sayHello()
                     personState = STATE_DETECTED
@@ -1201,14 +1205,16 @@ try:
                 debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
                 if (hitCnt == 0 or previousHitCnt == 0):
                     sayGoodBye()
-                    personState = STATE_NOTHING
+                    personState = STATE_PROBABLE
                 elif (hitCnt == 1 and previousHitCnt >= 1):
-                    sayGoodBye()
-                    personState = STATE_NOTHING
-                else:
                     p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
-                    personState = STATE_DETECTED
+#                    sayGoodBye()
+#                    personState = STATE_NOTHING
+                else:
+                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
+#                    personState = STATE_DETECTED
 
                 prevPersonState = STATE_DETECTED
 
