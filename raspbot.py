@@ -548,7 +548,7 @@ def getCPUtemperature():
     return temp_degF
 
 def debugPrint(message):
-    str nowString = str(datetime.now())
+    nowString = str(datetime.now())
     if DEBUG and MONITOR:
         print nowString+': '+message
     logfile.write('\r\n'+nowString+': '+message)
@@ -565,15 +565,17 @@ def moveHead(position, servo_pos):
         if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
             previous_pid_error = pid_error
             if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                servo_position += pid_error
+                servo_pos += pid_error
             else:
-                servo_position -= pid_error
+                servo_pos -= pid_error
                            
-        servo_position = set_servo_to_position(servo_position)
+        new_servo_pos = set_servo_to_position(servo_pos)
 
         time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)                 #let the temp's settle
 
-def sayHello:
+        return new_servo_pos
+
+def sayHello():
     if MONITOR:
         screen.fill(name_to_rgb('white'), message_area)
         text = font.render("Hello!", 1, name_to_rgb('red'))
@@ -592,17 +594,7 @@ def sayHello:
 #    play_sound(MAX_VOLUME, AFTER_HELLO_FILE_NAME)
 #    debugPrint('Played after hello audio')
 
-    if CONNECTED:
-        try:
-            speakSpeechFromText("The room temperature is "+"%.1f"%room_temp+" degrees fahrenheit", "rtemp.mp3")
-            play_sound(MAX_VOLUME, "rtemp.mp3")
-
-            #speakSpeechFromText("and your temperature is "+"%.1f"%max(temperature_array)+" degrees fahrenheit", "mtemp.mp3")
-            #play_sound(MAX_VOLUME, "mtemp.mp3")
-        except:
-            continue
-
-def sayGoodBye:
+def sayGoodBye():
     if MONITOR:
         screen.fill(name_to_rgb('white'), message_area)
         text = font.render("Good Bye!", 1, name_to_rgb('red'))
@@ -857,12 +849,12 @@ try:
 #     where it knows for sure that a person is in front and can say hello with
 #     confidence.
 #
-STATE_NOTHING = 0
-STATE_POSSIBLE = 1
-STATE_LIKELY = 2
-STATE_PROBABLY = 3
-STATE_DETECTED = 4
-personState = STATE_NOTHING
+    STATE_NOTHING = 0
+    STATE_POSSIBLE = 1
+    STATE_LIKELY = 2
+    STATE_PROBABLE = 3
+    STATE_DETECTED = 4
+    personState = STATE_NOTHING
 
 #############################
 # Main while loop
@@ -999,7 +991,7 @@ personState = STATE_NOTHING
 #                debugPrint('Person detect (p_detect): '+str(p_detect)+' Person position (p_pos): '+str(p_pos))
 
             previousHitCnt = hitCnt
-            hit_array, hitCnt = get_hit_array(room, t_array, s_position)
+            hit_array, hitCnt = get_hit_array(room_temp, temperature_array, servo_position)
 
 ###########################
 # Burn Hazard Detected !
@@ -1038,6 +1030,7 @@ personState = STATE_NOTHING
 #     Event 1: One or more sensors cross the person threshold - move to State 1
 #
             elif (personState == STATE_NOTHING):
+                debugPrint('STATE: NOTHING')
                 no_person_count += 1
                 p_detect_count = 0
                 person = 0
@@ -1128,12 +1121,13 @@ personState = STATE_NOTHING
 #     Event 2: More than one hit - state 2
 #
             elif (personState == STATE_POSSIBLE):
+                debugPrint('STATE: POSSIBLE')
                 no_person_count += 1
                 if (hitCnt == 0):
                     personState = STATE_NOTHING
-                elif (hitCnt = 1):
+                elif (hitCnt == 1):
                     p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
-                    moveHead(p_pos, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_NOTHING
                 else:
                     personState = STATE_LIKELY
@@ -1146,14 +1140,15 @@ personState = STATE_NOTHING
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
             elif (personState == STATE_LIKELY):
+                debugPrint('STATE: LIKELY')
                 no_person_count += 1
                 if (hitCnt == 0):
                     personState = STATE_POSSIBLE
-                elif (hitCnt = 1):
+                elif (hitCnt == 1):
                     personState = STATE_LIKELY
                 else:
-                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
-                    moveHead(p_pos, servo_position)
+                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_PROBABLE
 ###########################
 # Probable Person Detected
@@ -1164,13 +1159,14 @@ personState = STATE_NOTHING
 #     Event 2: more than one sensor still has a hit, move head, say hello, State 4
 #
             elif (personState == STATE_PROBABLE):
+                debugPrint('STATE: PROBABLE')
                 if (hitCnt == 0):
                     personState = STATE_LIKELY
-                elif (hitCnt = 1):
+                elif (hitCnt == 1):
                     personState = STATE_LIKELY
                 else:
-                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
-                    moveHead(p_pos, servo_position)
+                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
                     sayHello()
                     personState = STATE_DETECTED
 ###########################
@@ -1182,6 +1178,7 @@ personState = STATE_NOTHING
 #     Event 2: more than one sensor, move head to position, stay in State 4
 #     
             elif (personState == STATE_DETECTED):
+                debugPrint('STATE: DETECTED')
                 roam_count = 0
                 no_person_count = 0
                 burn_hazard = 0
@@ -1193,12 +1190,12 @@ personState = STATE_NOTHING
                 if (hitCnt == 0):
                     sayGoodBye()
                     personState = STATE_NOTHING
-                elif (hitCnt = 1):
+                elif (hitCnt == 1):
                     sayGoodBye()
                     personState = STATE_NOTHING
                 else:
-                    p_detect, p_pos = person_position_2_hit(room_temp, temperature_array, servo_position)
-                    moveHead(p_pos, servo_position)
+                    p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
+                    servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_DETECTED
 ###########################
 # Invalid state
@@ -1209,9 +1206,9 @@ personState = STATE_NOTHING
 # End of inner While loop
             break
 
-    if fatal_error:
-        logfile.write('\r\nFatal error at '+str(datetime.now()))
-        break
+        if fatal_error:
+            logfile.write('\r\nFatal error at '+str(datetime.now()))
+            break
 
 #############################
 # End main while loop
