@@ -1045,7 +1045,7 @@ try:
                     screen.blit(text, textpos)
     # update the screen
                     pygame.display.update()
-                if (hitCnt == 0):
+                if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_NOTHING
                 else:
                     personState = STATE_POSSIBLE
@@ -1123,9 +1123,9 @@ try:
             elif (personState == STATE_POSSIBLE):
                 debugPrint('STATE: POSSIBLE')
                 no_person_count += 1
-                if (hitCnt == 0):
+                if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_NOTHING
-                elif (hitCnt == 1):
+                elif (hitCnt == 1 and previousHitCnt >= 1):
                     p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_NOTHING
@@ -1142,9 +1142,9 @@ try:
             elif (personState == STATE_LIKELY):
                 debugPrint('STATE: LIKELY')
                 no_person_count += 1
-                if (hitCnt == 0):
+                if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_POSSIBLE
-                elif (hitCnt == 1):
+                elif (hitCnt == 1 and previousHitCnt >= 1):
                     personState = STATE_LIKELY
                 else:
                     p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
@@ -1160,9 +1160,9 @@ try:
 #
             elif (personState == STATE_PROBABLE):
                 debugPrint('STATE: PROBABLE')
-                if (hitCnt == 0):
+                if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_LIKELY
-                elif (hitCnt == 1):
+                elif (hitCnt == 1 and previousHitCnt >= 1):
                     personState = STATE_LIKELY
                 else:
                     p_detect, p_pos = person_position_1_hit(room_temp, temperature_array, servo_position)
@@ -1187,10 +1187,10 @@ try:
                 p_detect_count += 1
                 CPUtemp = getCPUtemperature()
                 debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
-                if (hitCnt == 0):
+                if (hitCnt == 0 or previousHitCnt == 0):
                     sayGoodBye()
                     personState = STATE_NOTHING
-                elif (hitCnt == 1):
+                elif (hitCnt == 1 and previousHitCnt >= 1):
                     sayGoodBye()
                     personState = STATE_NOTHING
                 else:
