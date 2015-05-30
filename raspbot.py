@@ -649,7 +649,7 @@ if "-help" in sys.argv:
 # Initialize variables
 temperature_array=[0.0]*OMRON_DATA_LIST     # holds the recently measured temperature
 temperature_previous=[0.0]*OMRON_DATA_LIST  # keeps track of the previous values
-temperature_moving_ave=[0.0]*OMRON_DATA_LIST    # moving average of temperature
+#temperature_moving_ave=[0.0]*OMRON_DATA_LIST    # moving average of temperature
 left_far=[0.0]*4
 left_ctr=[0.0]*4
 right_ctr=[0.0]*4
@@ -924,12 +924,12 @@ try:
 # read the raw temperature data
 # 
 # save away the previous temp measurement so that a moving average can be kept
-            for i in range(0,OMRON_DATA_LIST):
-                temperature_previous[i] = temperature_array[i]
+#            for i in range(0,OMRON_DATA_LIST):
+#                temperature_previous[i] = temperature_array[i]
  
-            debugPrint('Previous temperature measurement')
-            print_temps(temperature_previous)
-            debugPrint('')
+#            debugPrint('Previous temperature measurement')
+#            print_temps(temperature_previous)
+#            debugPrint('')
 
 # Format: (bytes_read, temperature_array, room_temp) = omron_read(sensor_handle, C/F, length of temperature array, pigpio socket handle)
 # returns bytes_read - if not equal to length of temperature array, then sensor error
@@ -947,13 +947,13 @@ try:
                 fatal_error = 1
                 break
 
-            for i in range(0,OMRON_DATA_LIST):
-                temp_list = [temperature_array[i], temperature_previous[i], temperature_moving_ave[i]]
-                temperature_moving_ave[i] = avg(temp_list)
+#            for i in range(0,OMRON_DATA_LIST):
+#                temp_list = [temperature_array[i], temperature_previous[i], temperature_moving_ave[i]]
+#                temperature_moving_ave[i] = avg(temp_list)
 
 # Display each element's temperature in F
-            debugPrint('Temperature moving average')
-            print_temps(temperature_moving_ave)
+#            debugPrint('Temperature moving average')
+#            print_temps(temperature_moving_ave)
 
 # Display the Omron internal temperature (room temp - something to compare signals with)
             debugPrint('Omron D6T internal temp = '+"%.1f"%room_temp+' F')
@@ -1031,7 +1031,7 @@ try:
 #     Event 1: One or more sensors cross the person threshold - move to State 1
 #
             elif (personState == STATE_NOTHING):
-                debugPrint('STATE: NOTHING')
+                debugPrint('STATE: NOTHING: No Person cnt: '+str(no_person_count))
                 no_person_count += 1
                 p_detect_count = 0
                 person = 0
@@ -1101,15 +1101,15 @@ try:
                     debugPrint('Servo: Setting position to: '+str(servo_position))
                     servo_position = set_servo_to_position(servo_position)
                 else:
-#                    debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
-#                    debugPrint('LED_state = '+str(LED_state))
+                    debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
+                    debugPrint('LED_state = '+str(LED_state))
                     if (LED_state == False):
                         LED_state = True
-#                        debugPrint('Turning LED on')
+                        debugPrint('Turning LED on')
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     else:
                         LED_state = False
-#                        debugPrint('Turning LED off')
+                        debugPrint('Turning LED off')
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     time.sleep(0.5)
 
