@@ -37,60 +37,67 @@ import urllib, pycurl, os   # needed for text to speech
 from pid import PID
 from raspbot_functions import *
 
-def debugPrint(message):
-    nowString = str(datetime.now())
+def debug_print(message):
+    """
+    Debug messages are printed to display and log file using this
+    """
+    now_string = str(datetime.now())
     if DEBUG and MONITOR:
-        print nowString+': '+message
-    logfile.write('\r\n'+nowString+': '+message)
+        print now_string+': '+message
+    logfile.write('\r\n'+now_string+': '+message)
     
 def print_temps(temp_list):
     """
     Display each element's temperature in F
     """
-    debugPrint("%.1f"%temp_list[12]+' '+"%.1f"%temp_list[8]+ \
+    debug_print("%.1f"%temp_list[12]+' '+"%.1f"%temp_list[8]+ \
                ' '+"%.1f"%temp_list[4]+' '+"%.1f"%temp_list[0]+' ')
-    debugPrint("%.1f"%temp_list[13]+' '+"%.1f"%temp_list[9]+ \
+    debug_print("%.1f"%temp_list[13]+' '+"%.1f"%temp_list[9]+ \
                ' '+"%.1f"%temp_list[5]+' '+"%.1f"%temp_list[1]+' ')
-    debugPrint("%.1f"%temp_list[14]+' '+"%.1f"%temp_list[10]+ \
+    debug_print("%.1f"%temp_list[14]+' '+"%.1f"%temp_list[10]+ \
                ' '+"%.1f"%temp_list[6]+' '+"%.1f"%temp_list[2]+' ')
-    debugPrint("%.1f"%temp_list[15]+' '+"%.1f"%temp_list[11]+ \
+    debug_print("%.1f"%temp_list[15]+' '+"%.1f"%temp_list[11]+ \
                ' '+"%.1f"%temp_list[7]+' '+"%.1f"%temp_list[3]+' ')
 
-def get_hit_array(room, t_array, s_position):
+def get_hit_array(t_array):
     """
     Used to fill a 4x4 array with a person "hit" temperature logical
     """
-    hitCount = 0
+    hit_count = 0
 
-    hit_count=[0]*OMRON_DATA_LIST
-    # t_delta holds the difference between threshold and actual
-    t_delta=[0.0]*OMRON_DATA_LIST 
-    h_delta=[0]*4
+    hit_array_temp = [0]*OMRON_DATA_LIST
+    h_delta = [0]*4
 
-    for i in range(0,OMRON_DATA_LIST):
-        if (t_array[i] > PERSON_TEMP_THRESHOLD and \
-            t_array[i] < BURN_HAZARD_TEMP):     # a person temperature
+# go through each array element to find person "hits"
+# max hit count is 4 unless there is a burn hazard
+    for element in range(0, OMRON_DATA_LIST):
+        if (t_array[element] > BURN_HAZARD_TEMP):     # a hazardous temp
+            hit_array_temp[element] = 10
+            hit_count += 1
             
-            t_delta[i] = t_array[i] - PERSON_TEMP_THRESHOLD
-            hit_count[i] += 1
-            hitCount += 1
+        elif (t_array[element] > PERSON_TEMP_THRESHOLD): # a person temp
+            hit_array_temp[element] += 1
+            hit_count += 1
+
+        else:
+            hit_array_temp[element] = 0
             
-#    debugPrint('Hit count = '+str(hit_count))
-#    debugPrint('Temperature deltas')
-#    print_temps(t_delta)
-     
 # use hit counts as a weighting factor: 1 hit = x percent increase
     # far left column
-    h_delta[0] = hit_count[12]+hit_count[13]+hit_count[14]+hit_count[15]
-    h_delta[1] = hit_count[8]+hit_count[9]+hit_count[10]+hit_count[11] 
-    h_delta[2] = hit_count[4]+hit_count[5]+hit_count[6]+hit_count[7] 
+    h_delta[0] = hit_array_temp[12]+hit_array_temp[13]+ \
+                 hit_array_temp[14]+hit_array_temp[15]
+    h_delta[1] = hit_array_temp[8]+hit_array_temp[9]+ \
+                 hit_array_temp[10]+hit_array_temp[11] 
+    h_delta[2] = hit_array_temp[4]+hit_array_temp[5]+ \
+                 hit_array_temp[6]+hit_array_temp[7] 
     # far right column
-    h_delta[3] = hit_count[0]+hit_count[1]+hit_count[2]+hit_count[3] 
+    h_delta[3] = hit_array_temp[0]+hit_array_temp[1]+ \
+                 hit_array_temp[2]+hit_array_temp[3] 
 
-    debugPrint('hit_count_delta: '+str(h_delta[0])+str(h_delta[1])+ \
+    debug_print('hit_count_delta: '+str(h_delta[0])+str(h_delta[1])+ \
                str(h_delta[2])+str(h_delta[3]))
 
-    return h_delta, hitCount
+    return h_delta, hit_count
 
 def set_servo_to_position (new_position):
     """
@@ -114,7 +121,7 @@ def set_servo_to_position (new_position):
             elif new_position > MAX_SERVO_POSITION:
                 new_position = MAX_SERVO_POSITION
 
-#        debugPrint('Desired servo position: '+str(new_position))
+#        debug_print('Desired servo position: '+str(new_position))
             
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             if (new_position >= MAX_SERVO_POSITION and \
@@ -130,7 +137,7 @@ def set_servo_to_position (new_position):
                     *MINIMUM_SERVO_GRANULARITY
                 servo.set_servo(SERVO_GPIO_PIN, final_position)
             else:
-                debugPrint \
+                debug_print \
                 ('ERROR: set_servo_to_position L-H=CW out of range: ' \
                  +str(new_position)+' min= '+str(MIN_SERVO_POSITION)+ \
                  ' max = '+str(MAX_SERVO_POSITION))
@@ -148,12 +155,12 @@ def set_servo_to_position (new_position):
                     *MINIMUM_SERVO_GRANULARITY
                 servo.set_servo(SERVO_GPIO_PIN, final_position)
             else:
-                debugPrint \
+                debug_print \
                 ('ERROR: set_servo_to_position L-H=CCW out of range: ' \
                  +str(new_position)+ ' min= '+str(MIN_SERVO_POSITION)+ \
                  ' max = '+str(MAX_SERVO_POSITION))
 
-            debugPrint('SERVO_MOVE: '+str(final_position))
+            debug_print('SERVO_MOVE: '+str(final_position))
 
         return final_position
 
@@ -168,7 +175,7 @@ def person_position_2_hit(room, t_array, s_position):
     returns (TRUE if person detected, approximate person position)
     """
 
-    hit_array, hitCnt = get_hit_array(room, t_array, s_position)
+    hit_array, hitCnt = get_hit_array(t_array)
 
 # First, look for > two hits in a single column
     if (hit_array[1] >= 2 and hit_array[2] >= 2):
@@ -212,7 +219,7 @@ def person_position_quad_hit(room, t_array, s_position):
     returns (TRUE if person detected, approximate person position)
     """
 
-    hit_array, hitCnt = get_hit_array(room, t_array, s_position)
+    hit_array, hitCnt = get_hit_array(t_array)
 
 # First, look for center quad hits
     if (hit_array[1] >= 2 and hit_array[2] >= 2):
@@ -257,7 +264,7 @@ def person_position_1_hit(room, t_array, s_position):
     returns (TRUE if person detected, approximate person position)
     """
 
-    hit_array, hitCnt = get_hit_array(room, t_array, s_position)
+    hit_array, hitCnt = get_hit_array(t_array)
 
     if ((hit_array[0] >= 1 or hit_array[0] == 0) and \
         hit_array[1] >= 1 and hit_array[2] >= 1 and \
@@ -331,7 +338,7 @@ def moveHead(position, servo_pos):
         pid_controller.setPoint(position)
         # process variable is current position
         pid_error = pid_controller.update(servo_pos)
-        debugPrint('Des Pos: '+str(position)+ \
+        debug_print('Des Pos: '+str(position)+ \
                    ' Cur Pos: '+str(servo_pos)+ \
                    ' PID Error: '+str(pid_error))
 
@@ -352,6 +359,79 @@ def moveHead(position, servo_pos):
 
         return new_servo_pos
 
+def servo_roam(roam_cnt, servo_pos, servo_dir):
+# put servo in roaming mode
+
+    roam_cnt += 1
+    if SERVO and (ROAM or RAND) and roam_cnt <= ROAM_MAX:
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            if (servo_pos <= SERVO_LIMIT_CCW and \
+                servo_dir == SERVO_CUR_DIR_CCW):
+                debug_print('CCW limit, changing direction')
+                servo_dir = SERVO_CUR_DIR_CW
+                #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+        else:
+            if (servo_pos >= SERVO_LIMIT_CCW and \
+                servo_dir == SERVO_CUR_DIR_CCW):
+                debug_print('CCW limit, changing direction')
+                servo_dir = SERVO_CUR_DIR_CW
+                #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+            
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            if (servo_pos >= SERVO_LIMIT_CW and \
+                servo_dir == SERVO_CUR_DIR_CW):
+                debug_print('CW limit, changing direction')
+                servo_dir = SERVO_CUR_DIR_CCW
+                #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+        else:
+            if (servo_pos <= SERVO_LIMIT_CW and \
+                servo_dir == SERVO_CUR_DIR_CW):
+                debug_print('CW limit, changing direction')
+                servo_dir = SERVO_CUR_DIR_CCW
+                #play_sound(MAX_VOLUME, BORED_FILE_NAME)
+            
+        if RAND:
+            debug_print('SERVO_RAND Pos: ' \
+                       +str(servo_pos)+' Dir: ' \
+                       +str(servo_dir))
+            servo_position = \
+                random.randint(MAX_SERVO_POSITION, \
+                               MIN_SERVO_POSITION)
+        else:
+            if servo_dir == SERVO_CUR_DIR_CCW:
+                debug_print('SERVO_ROAM Pos: '+ \
+                    str(servo_pos)+' Direction: CCW')
+                if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                    servo_pos -= ROAMING_GRANULARTY
+                else:
+                    servo_pos += ROAMING_GRANULARTY
+            if servo_dir == SERVO_CUR_DIR_CW:
+                debug_print('SERVO_ROAM Pos: '+ \
+                    str(servo_pos)+' Direction: CW')
+                if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                    servo_pos += ROAMING_GRANULARTY
+                else:
+                    servo_pos -= ROAMING_GRANULARTY
+          
+        servo_pos = \
+            set_servo_to_position(servo_pos)
+
+    else:
+        if (LED_state == False):
+            LED_state = True
+#                        debug_print('Turning LED on')
+            GPIO.output(LED_GPIO_PIN, LED_state)
+        else:
+            LED_state = False
+#                        debug_print('Turning LED off')
+            GPIO.output(LED_GPIO_PIN, LED_state)
+        time.sleep(0.5)
+# Start roaming again if no action
+        if SERVO and ROAM and roam_cnt >= ROAM_MAX*2:
+            roam_cnt = 0
+
+    return roam_cnt, servo_pos, servo_dir
+
 def sayHello():
     if MONITOR:
         screen.fill(name_to_rgb('white'), message_area)
@@ -362,16 +442,16 @@ def sayHello():
 # update the screen
         pygame.display.update()
 
-    debugPrint('**************************')
-    debugPrint(' Hello Person! ')
-    debugPrint('**************************')
+    debug_print('**************************')
+    debug_print(' Hello Person! ')
+    debug_print('**************************')
 
 # Play "hello" sound effect
-    debugPrint('Playing hello audio')
+    debug_print('Playing hello audio')
     play_sound(MAX_VOLUME, HELLO_FILE_NAME)
 #    time.sleep(1)
 #    play_sound(MAX_VOLUME, AFTER_HELLO_FILE_NAME)
-#    debugPrint('Played after hello audio')
+#    debug_print('Played after hello audio')
 
 def sayGoodBye():
     if MONITOR:
@@ -383,16 +463,16 @@ def sayGoodBye():
 # update the screen
         pygame.display.update()
 
-    debugPrint('**************************')
-    debugPrint(' Good Bye Person! ')
-    debugPrint('**************************')
+    debug_print('**************************')
+    debug_print(' Good Bye Person! ')
+    debug_print('**************************')
 
 # Play "bye bye" sound effect
     #byebye_message = random.choice(BYEBYE_FILE_NAME)
-    debugPrint('Playing badge audio')
+    debug_print('Playing badge audio')
     play_sound(MAX_VOLUME, BADGE_FILE_NAME)
 
-    debugPrint('Playing good bye audio')
+    debug_print('Playing good bye audio')
     play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
 
 
@@ -410,7 +490,7 @@ def crash_and_burn(msg, pygame, servo, logfile):
     """
     Something bad happend; quit the program
     """
-    debugPrint(msg)
+    debug_print(msg)
     if SERVO:
         servo.stop_servo(SERVO_GPIO_PIN)
     LED_state = False
@@ -630,7 +710,7 @@ try:
         print 'CPU temperature = '+str(CPUtemp)
 
     logfile.write('\r\nPiGPIO version = '+str(version))
-    debugPrint('PiGPIO version = '+str(version))
+    debug_print('PiGPIO version = '+str(version))
 
 # setup the IR color window
     if MONITOR:
@@ -665,7 +745,7 @@ try:
 # initialze the music player
     pygame.mixer.init()
 
-    debugPrint('Looking for a person')
+    debug_print('Looking for a person')
 
     no_person_count = 0
     p_detect = False
@@ -779,7 +859,7 @@ try:
     while True:                 # The main loop
         loop_count += 1
         CPUtemp = getCPUtemperature()
-        debugPrint('\r\n*************************** MAIN_WHILE_LOOP: ' \
+        debug_print('\r\n*************************** MAIN_WHILE_LOOP: '\
                    +str(loop_count)+'\r\nPcount: '+str(p_detect_count)+\
                    ' Max: '+"%.1f"%max(temperature_array)+ \
                    ' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
@@ -787,38 +867,39 @@ try:
         if (CPUtemp >= 105.0):
             if CPU_105_ON:
                 play_sound(MAX_VOLUME, CPU_105_FILE_NAME)
-#                    debugPrint('Played 105 audio')
+#                    debug_print('Played 105 audio')
         elif (CPUtemp >= 110.0):
             play_sound(MAX_VOLUME, CPU_110_FILE_NAME)
-#                debugPrint('Played 110 audio')
+#                debug_print('Played 110 audio')
         elif (CPUtemp >= 115.0):
             play_sound(MAX_VOLUME, CPU_115_FILE_NAME)
-#                debugPrint('Played 115 audio')
+#                debug_print('Played 115 audio')
         elif (CPUtemp >= 120.0):
             play_sound(MAX_VOLUME, CPU_120_FILE_NAME)
-#                debugPrint('Played 120 audio')
+#                debug_print('Played 120 audio')
         elif (CPUtemp >= 125.0):
             play_sound(MAX_VOLUME, CPU_125_FILE_NAME)
-#                debugPrint('Played 125 audio')
+#                debug_print('Played 125 audio')
 
 # periododically, write the log file to disk
         if loop_count >= LOG_MAX:
-            debugPrint('\r\nLoop count max reached (' \
+            debug_print('\r\nLoop count max reached (' \
                 +str(loop_count)+' at '+str(datetime.now()))
             loop_count = 0      # reset the counter
-            debugPrint('\r\nClosing log file at '+str(datetime.now()))
+            debug_print('\r\nClosing log file at '+str(datetime.now()))
             logfile.close       # for forensic analysis
             logfile = open(LOGFILE_NAME, 'wb')
-            debugPrint('\r\nLog file re-opened at '+str(datetime.now()))
-            debugPrint(logfile_open_string)
-            debugPrint(logfile_args_string)
-            debugPrint(logfile_temp_string)
-            debugPrint('person temp threshold = ' \
+            debug_print('\r\nLog file re-opened at ' \
+                        +str(datetime.now()))
+            debug_print(logfile_open_string)
+            debug_print(logfile_args_string)
+            debug_print(logfile_temp_string)
+            debug_print('person temp threshold = ' \
                        +str(PERSON_TEMP_THRESHOLD))
 # Display the Omron internal temperature
-            debugPrint('Omron D6T internal temp = ' \
+            debug_print('Omron D6T internal temp = ' \
                        +"%.1f"%room_temp+' F')
-            debugPrint('Servo Type: '+str(SERVO_TYPE))
+            debug_print('Servo Type: '+str(SERVO_TYPE))
 
 # start roaming again            
             no_person_count = 0
@@ -853,12 +934,12 @@ try:
             omron_read_count += 1
          
 # Display each element's temperature in F
-#            debugPrint('New temperature measurement')
+#            debug_print('New temperature measurement')
             print_temps(temperature_array)
 
             if bytes_read != OMRON_BUFFER_LENGTH: # sensor problem
                 omron_error_count += 1
-                debugPrint( \
+                debug_print( \
                     'ERROR: Omron thermal sensor failure! Bytes read: '\
                     +str(bytes_read))
                 fatal_error = 1
@@ -898,8 +979,7 @@ try:
 ###########################
 
             previousHitCnt = hitCnt
-            hit_array, hitCnt = get_hit_array(room_temp, \
-                    temperature_array, servo_position)
+            hit_array, hitCnt = get_hit_array(temperature_array)
 
 ###########################
 # Burn Hazard Detected !
@@ -920,7 +1000,7 @@ try:
                     pygame.display.update()
 
                 play_sound(MAX_VOLUME, BURN_FILE_NAME)
-                debugPrint('Played Burn warning audio')
+                debug_print('Played Burn warning audio')
                 if CONNECTED:
                     try:
                         speakSpeechFromText("The temperature is "+ \
@@ -929,7 +1009,7 @@ try:
                         play_sound(MAX_VOLUME, "mtemp.mp3")
                     except:
                         continue
-                debugPrint('\r\n'+"Burn hazard temperature is " \
+                debug_print('\r\n'+"Burn hazard temperature is " \
                            +"%.1f"%max(temperature_array)+" degrees")
                 
                 break
@@ -942,7 +1022,7 @@ try:
 #     Event 1: One or more sensors cross the person threshold
 #
             elif (personState == STATE_NOTHING):
-                debugPrint('STATE: NOTHING: No Person cnt: ' \
+                debug_print('STATE: NOTHING: No Person cnt: ' \
                            +str(no_person_count)+' ROAM_COUNT = ' \
                            +str(roam_count))
                 no_person_count += 1
@@ -965,76 +1045,9 @@ try:
                 else:
                     personState = STATE_POSSIBLE
 
-    # put servo in roaming mode
-
-                roam_count += 1
-                if SERVO and (ROAM or RAND) and roam_count <= ROAM_MAX:
-                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                        if (servo_position <= SERVO_LIMIT_CCW and \
-                            servo_direction == SERVO_CUR_DIR_CCW):
-                            debugPrint('CCW limit, changing direction')
-                            servo_direction = SERVO_CUR_DIR_CW
-                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                    else:
-                        if (servo_position >= SERVO_LIMIT_CCW and \
-                            servo_direction == SERVO_CUR_DIR_CCW):
-                            debugPrint('CCW limit, changing direction')
-                            servo_direction = SERVO_CUR_DIR_CW
-                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                        
-                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                        if (servo_position >= SERVO_LIMIT_CW and \
-                            servo_direction == SERVO_CUR_DIR_CW):
-                            debugPrint('CW limit, changing direction')
-                            servo_direction = SERVO_CUR_DIR_CCW
-                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                    else:
-                        if (servo_position <= SERVO_LIMIT_CW and \
-                            servo_direction == SERVO_CUR_DIR_CW):
-                            debugPrint('CW limit, changing direction')
-                            servo_direction = SERVO_CUR_DIR_CCW
-                            #play_sound(MAX_VOLUME, BORED_FILE_NAME)
-                        
-                    if RAND:
-                        debugPrint('SERVO_RAND Pos: ' \
-                                   +str(servo_position)+' Dir: ' \
-                                   +str(servo_direction))
-                        servo_position = \
-                            random.randint(MAX_SERVO_POSITION, \
-                                           MIN_SERVO_POSITION)
-                    else:
-                        if servo_direction == SERVO_CUR_DIR_CCW:
-                            debugPrint('SERVO_ROAM Pos: '+ \
-                                str(servo_position)+' Direction: CCW')
-                            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                                servo_position -= ROAMING_GRANULARTY
-                            else:
-                                servo_position += ROAMING_GRANULARTY
-                        if servo_direction == SERVO_CUR_DIR_CW:
-                            debugPrint('SERVO_ROAM Pos: '+ \
-                                str(servo_position)+' Direction: CW')
-                            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                                servo_position += ROAMING_GRANULARTY
-                            else:
-                                servo_position -= ROAMING_GRANULARTY
-                      
-                    servo_position = \
-                        set_servo_to_position(servo_position)
-
-                else:
-                    if (LED_state == False):
-                        LED_state = True
-#                        debugPrint('Turning LED on')
-                        GPIO.output(LED_GPIO_PIN, LED_state)
-                    else:
-                        LED_state = False
-#                        debugPrint('Turning LED off')
-                        GPIO.output(LED_GPIO_PIN, LED_state)
-                    time.sleep(0.5)
-# Start roaming again if no action
-                    if SERVO and ROAM and roam_count >= ROAM_MAX*2:
-                        roam_count = 0
-
+                (roam_count, servo_position, servo_direction) = \
+                servo_roam(roam_count, servo_position, servo_direction)
+                
                 prevPersonState = STATE_NOTHING
                     
 ###########################
@@ -1046,7 +1059,7 @@ try:
 #     Event 2: More than one hit - state 2
 #
             elif (personState == STATE_POSSIBLE):
-                debugPrint('STATE: POSSIBLE: No Person cnt: ' \
+                debug_print('STATE: POSSIBLE: No Person cnt: ' \
                            +str(no_person_count))
                 no_person_count += 1
                 if (hitCnt == 0 or previousHitCnt == 0):
@@ -1059,6 +1072,9 @@ try:
                 else:
                     personState = STATE_LIKELY
 
+                (roam_count, servo_position, servo_direction) = \
+                servo_roam(roam_count, servo_position, servo_direction)
+                
                 prevPersonState = STATE_POSSIBLE
                 
 ###########################
@@ -1070,7 +1086,7 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
             elif (personState == STATE_LIKELY):
-                debugPrint('STATE: LIKELY: No Person cnt: ' \
+                debug_print('STATE: LIKELY: No Person cnt: ' \
                             +str(no_person_count))
                 no_person_count += 1
                 if (hitCnt == 0 or previousHitCnt == 0):
@@ -1085,7 +1101,7 @@ try:
                         temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_PROBABLE
-
+                
                 prevPersonState = STATE_LIKELY
 
 ###########################
@@ -1097,7 +1113,7 @@ try:
 #     Event 2: more than one sensor has a hit, move head, say hello
 #
             elif (personState == STATE_PROBABLE):
-                debugPrint('STATE: PROBABLE: No Person cnt: ' \
+                debug_print('STATE: PROBABLE: No Person cnt: ' \
                             +str(no_person_count))
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_LIKELY
@@ -1124,7 +1140,7 @@ try:
 #     Event 2: more than one sensor, move head to position, stay
 #     
             elif (personState == STATE_DETECTED):
-                debugPrint('STATE: DETECTED: No Person cnt: ' \
+                debug_print('STATE: DETECTED: No Person cnt: ' \
                            +str(no_person_count))
                 roam_count = 0
                 no_person_count = 0
@@ -1133,7 +1149,7 @@ try:
                 GPIO.output(LED_GPIO_PIN, LED_state)
                 p_detect_count += 1
                 CPUtemp = getCPUtemperature()
-                debugPrint('Person_count: '+str(p_detect_count)+ \
+                debug_print('Person_count: '+str(p_detect_count)+ \
                            ' Max: '+"%.1f"%max(temperature_array)+ \
                            ' Servo: '+str(servo_position)+' CPU: ' \
                            +str(CPUtemp))
@@ -1159,6 +1175,9 @@ try:
 ###########################
             else:
                 personState = STATE_NOTHING
+                (roam_count, servo_position, servo_direction) = \
+                servo_roam(roam_count, servo_position, servo_direction)
+                
                 
 # End of inner While loop
             break
@@ -1179,7 +1198,7 @@ except IOError:
     # do not close the logfile here
     # allows the previous logfile to stay intact for a forensic analysis
     crash_msg = '\r\nI/O Error; quitting'
-    debugPrint(crash_msg)
+    debug_print(crash_msg)
     if SERVO:
         servo.stop_servo(SERVO_GPIO_PIN)
     pygame.quit()
