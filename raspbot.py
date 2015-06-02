@@ -63,7 +63,7 @@ def get_hit_array(t_array):
     """
     Used to fill a 4x4 array with a person "hit" temperature logical
     """
-    hit_count = 0
+    hit_count_gha = 0
 
     hit_array_temp = [0]*OMRON_DATA_LIST
     h_delta = [0]*4
@@ -73,11 +73,11 @@ def get_hit_array(t_array):
     for element in range(0, OMRON_DATA_LIST):
         if (t_array[element] > BURN_HAZARD_TEMP):     # a hazardous temp
             hit_array_temp[element] = 10
-            hit_count += 1
+            hit_count_gha += 1
             
         elif (t_array[element] > PERSON_TEMP_THRESHOLD): # a person temp
             hit_array_temp[element] += 1
-            hit_count += 1
+            hit_count_gha += 1
 
         else:
             hit_array_temp[element] = 0
@@ -94,10 +94,7 @@ def get_hit_array(t_array):
     h_delta[3] = hit_array_temp[0]+hit_array_temp[1]+ \
                  hit_array_temp[2]+hit_array_temp[3] 
 
-    debug_print('hit_count_delta: '+str(h_delta[0])+str(h_delta[1])+ \
-               str(h_delta[2])+str(h_delta[3]))
-
-    return h_delta, hit_count
+    return h_delta, hit_count_gha
 
 def set_servo_to_position (new_position):
     """
@@ -121,125 +118,20 @@ def set_servo_to_position (new_position):
             elif new_position > MAX_SERVO_POSITION:
                 new_position = MAX_SERVO_POSITION
 
-#        debug_print('Desired servo position: '+str(new_position))
-            
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            if (new_position >= MAX_SERVO_POSITION and \
-                new_position <= MIN_SERVO_POSITION):
-                # if there is a remainder, make 10us increments
-                if (new_position%MINIMUM_SERVO_GRANULARITY < 5):
-                    final_position = \
-                    (new_position//MINIMUM_SERVO_GRANULARITY) \
-                    *MINIMUM_SERVO_GRANULARITY
-                else:
-                    final_position = \
-                    ((new_position//MINIMUM_SERVO_GRANULARITY)+1) \
-                    *MINIMUM_SERVO_GRANULARITY
-                servo.set_servo(SERVO_GPIO_PIN, final_position)
-            else:
-                debug_print \
-                ('ERROR: set_servo_to_position L-H=CW out of range: ' \
-                 +str(new_position)+' min= '+str(MIN_SERVO_POSITION)+ \
-                 ' max = '+str(MAX_SERVO_POSITION))
+        # if there is a remainder, make 10us increments
+        if (new_position%MINIMUM_SERVO_GRANULARITY < 5):
+            final_position = \
+            (new_position//MINIMUM_SERVO_GRANULARITY) \
+            *MINIMUM_SERVO_GRANULARITY
         else:
-            if (new_position >= MIN_SERVO_POSITION and \
-                new_position <= MAX_SERVO_POSITION):
-                # if there is a remainder, make 10us increments
-                if (new_position%MINIMUM_SERVO_GRANULARITY < 5):
-                    final_position = \
-                    (new_position//MINIMUM_SERVO_GRANULARITY) \
-                    *MINIMUM_SERVO_GRANULARITY
-                else:
-                    final_position = \
-                    ((new_position//MINIMUM_SERVO_GRANULARITY)+1) \
-                    *MINIMUM_SERVO_GRANULARITY
-                servo.set_servo(SERVO_GPIO_PIN, final_position)
-            else:
-                debug_print \
-                ('ERROR: set_servo_to_position L-H=CCW out of range: ' \
-                 +str(new_position)+ ' min= '+str(MIN_SERVO_POSITION)+ \
-                 ' max = '+str(MAX_SERVO_POSITION))
+            final_position = \
+            ((new_position//MINIMUM_SERVO_GRANULARITY)+1) \
+            *MINIMUM_SERVO_GRANULARITY
 
-            debug_print('SERVO_MOVE: '+str(final_position))
-
+        debug_print('SERVO_MOVE: '+str(final_position))
+        servo.set_servo(SERVO_GPIO_PIN, final_position)
+           
         return final_position
-
-# number of microseconds to move the servo if person is not near cetner
-FAR = 220
-# number of microseconds to move the servo if person is near cetner
-NEAR = 120
-
-def person_position_2_hit(room, t_array, s_position):
-    """
-    Detect a persons presence using the "greater than two algorithm"
-    returns (TRUE if person detected, approximate person position)
-    """
-
-    hit_array, hitCnt = get_hit_array(t_array)
-
-# First, look for > two hits in a single column
-    if (hit_array[1] >= 2 and hit_array[2] >= 2):
-        # stop
-        return (True, s_position)
-    elif (hit_array[0] >= 2 and hit_array[1] <= 1 and \
-          hit_array[2] <= 1 and hit_array[3] <= 1):
-        # move CW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + FAR)
-        else:
-            return (True, s_position - FAR)
-    elif (hit_array[1] >= 2 and hit_array[2] <= 1 and \
-          hit_array[3] <= 1):
-        # move CW 15
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + NEAR)
-        else:
-            return (True, s_position - NEAR)
-    elif (hit_array[2] >= 2 and hit_array[0] <= 1 and \
-          hit_array[1] <= 1):
-        # move CCW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - NEAR)
-        else:
-            return (True, s_position + NEAR)
-    elif (hit_array[3] >= 2 and hit_array[0] <= 1 and \
-          hit_array[1] <= 1 and hit_array[2] <= 1):
-        # move CCW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - FAR)
-        else:
-            return (True, s_position + FAR)
-    else:
-        # no person detected
-        return (False, s_position)
-
-def person_position_quad_hit(room, t_array, s_position):
-    """
-    Detect a persons presence using "look for hits in a 2x2 quadrant"
-    returns (TRUE if person detected, approximate person position)
-    """
-
-    hit_array, hitCnt = get_hit_array(t_array)
-
-# First, look for center quad hits
-    if (hit_array[1] >= 2 and hit_array[2] >= 2):
-        # stop
-        return (True, s_position)
-    elif (hit_array[0] >= 2 and hit_array[0] >= 2):
-        # move CW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + NEAR)
-        else:
-            return (True, s_position - NEAR)
-    elif (hit_array[2] >= 2 and hit_array[3] >= 2):
-        # move CCW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - NEAR)
-        else:
-            return (True, s_position + NEAR)
-    else:
-        # no person detected
-        return (False, s_position)
 
 FAR_ONE = 240       
 NEAR_ONE = 100      
@@ -263,73 +155,131 @@ def person_position_1_hit(room, t_array, s_position):
     Detect a persons presence using "greater than one algorithm"
     returns (TRUE if person detected, approximate person position)
     """
+    person_det_1 = True
+    person_pos_1 = s_position
+    move_dist_1 = 0
+    move_cw_1 = True
 
-    hit_array, hitCnt = get_hit_array(t_array)
+    hit_array_1, hit_count_1 = get_hit_array(t_array)
 
-    if ((hit_array[0] >= 1 or hit_array[0] == 0) and \
-        hit_array[1] >= 1 and hit_array[2] >= 1 and \
-        (hit_array[3] >= 1 or hit_array[3] == 0)):
-        # no change
-        return (True, s_position)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and \
-          hit_array[2] == 0 and hit_array[3] >= 1):
-        # move CCW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - FAR_ONE)
-        else:
-            return (True, s_position + FAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and \
-          hit_array[2] >= 1 and hit_array[3] == 0):
-        # move CCW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - NEAR_ONE)
-        else:
-            return (True, s_position + NEAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] >= 1 and \
-          hit_array[2] == 0 and hit_array[3] == 0):
-        # move CW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + NEAR_ONE)
-        else:
-            return (True, s_position - NEAR_ONE)
-    elif (hit_array[0] >= 1 and hit_array[1] == 0 and \
-          hit_array[2] == 0 and hit_array[3] == 0):
-        # move CW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + FAR_ONE)
-        else:
-            return (True, s_position - FAR_ONE)
-    elif (hit_array[0] == 0 and hit_array[1] == 0 and \
-          hit_array[2] >= 1 and hit_array[3] >= 1):
-        # move CCW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - FAR_TWO)
-        else:
-            return (True, s_position + FAR_TWO)
-    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and \
-          hit_array[2] == 0 and hit_array[3] == 0):
-        # move CW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + FAR_TWO)
-        else:
-            return (True, s_position - FAR_TWO)
-    elif (hit_array[0] == 0 and hit_array[1] >= 1 and \
-          hit_array[2] >= 1 and hit_array[3] >= 1):
-        # move CCW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position - NEAR_THREE)
-        else:
-            return (True, s_position + NEAR_THREE)
-    elif (hit_array[0] >= 1 and hit_array[1] >= 1 and \
-          hit_array[2] >= 1 and hit_array[3] == 0):
-        # move CW
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            return (True, s_position + NEAR_THREE)
-        else:
-            return (True, s_position - NEAR_THREE)
+    if (hit_array_1[1] >= 1 and hit_array_1[2] >= 1):
+        # person is centered
+        move_dist_1 = 0
+    elif (hit_array_1[0] == 0 and hit_array_1[1] == 0 and \
+          hit_array_1[2] == 0 and hit_array_1[3] >= 1):
+        move_dist_1 = FAR_ONE
+        move_cw_1 = False
+    elif (hit_array_1[0] == 0 and hit_array_1[1] == 0 and \
+          hit_array_1[2] >= 1 and hit_array_1[3] == 0):
+        move_dist_1 = NEAR_ONE
+        move_cw_1 = False
+    elif (hit_array_1[0] == 0 and hit_array_1[1] >= 1 and \
+          hit_array_1[2] == 0 and hit_array_1[3] == 0):
+        move_dist_1 = NEAR_ONE
+        move_cw_1 = True
+    elif (hit_array_1[0] >= 1 and hit_array_1[1] == 0 and \
+          hit_array_1[2] == 0 and hit_array_1[3] == 0):
+        move_dist_1 = FAR_ONE
+        move_cw_1 = True
+    elif (hit_array_1[0] == 0 and hit_array_1[1] == 0 and \
+          hit_array_1[2] >= 1 and hit_array_1[3] >= 1):
+        move_dist_1 = FAR_TWO
+        move_cw_1 = False
+    elif (hit_array_1[0] >= 1 and hit_array_1[1] >= 1 and \
+          hit_array_1[2] == 0 and hit_array_1[3] == 0):
+        move_dist_1 = FAR_TWO
+        move_cw_1 = True
+    elif (hit_array_1[0] == 0 and hit_array_1[1] >= 1 and \
+          hit_array_1[2] >= 1 and hit_array_1[3] >= 1):
+        move_dist_1 = NEAR_THREE
+        move_cw_1 = False
+    elif (hit_array_1[0] >= 1 and hit_array_1[1] >= 1 and \
+          hit_array_1[2] >= 1 and hit_array_1[3] == 0):
+        move_dist_1 = NEAR_THREE
+        move_cw_1 = True
     else:
         # no person detected
-        return (False, s_position)
+        person_det_1 = False
+
+    debug_print('hits(1): '+str(hit_array_1[0])+str(hit_array_1[1])+ \
+               str(hit_array_1[2])+str(hit_array_1[3])+ \
+                ' delta(1): '+str(move_dist_1))
+
+    if (move_dist_1 > 0):
+        if (move_cw_1):
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                person_pos_1 = s_position + move_dist_1
+            else:
+                person_pos_1 = s_position - move_dist_1
+        else:
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                person_pos_1 = s_position - move_dist_1
+            else:
+                person_pos_1 = s_position + move_dist_1
+
+    return (person_det_1, person_pos_1)
+
+def person_position_2_hit(room, t_array, s_position):
+    """
+    Detect a persons presence using the "greater than two algorithm"
+    returns (TRUE if person detected, approximate person position)
+    """
+    person_det_2 = True
+    person_pos_2 = s_position
+    move_dist_2 = 0
+    move_cw_2 = True
+
+    hit_array_2, hit_count_2 = get_hit_array(t_array)
+
+# First, look for > two hits in a single column
+    if (hit_array_2[1] >= 2 and hit_array_2[2] >= 2):
+        # person already in center
+        move_dist_2 = 0
+    elif (hit_array_2[0] >= 2 and hit_array_2[1] <= 1 and \
+          hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
+        move_dist_2 = FAR_ONE
+        move_cw_2 = True
+    elif (hit_array_2[0] <= 1 and hit_array_2[1] >= 2 and \
+          hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
+        move_dist_2 = NEAR_ONE
+        move_cw_2 = True
+    elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
+          hit_array_2[2] >= 2 and hit_array_2[3] <= 1):
+        move_dist_2 = NEAR_ONE
+        move_cw_2 = False
+    elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
+          hit_array_2[2] <= 1 and hit_array_2[3] >= 2):
+        move_dist_2 = FAR_ONE
+        move_cw_2 = False
+    elif (hit_array_2[0] >= 2 and hit_array_2[1] >= 2 and \
+          hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
+        move_dist_2 = NEAR_THREE
+        move_cw_2 = True
+    elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
+          hit_array_2[2] >= 2 and hit_array_2[3] >= 2):
+        move_dist_2 = NEAR_THREE
+        move_cw_2 = False
+    else:
+        # no person detected
+        person_det_2 = False
+
+    debug_print('hits(2): '+str(hit_array_2[0])+str(hit_array_2[1])+ \
+               str(hit_array_2[2])+str(hit_array_2[3])+ \
+                ' delta(2): '+str(move_dist_2))
+
+    if (move_dist_2 > 0):
+        if (move_cw_2):
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                person_pos_2 = s_position + move_dist_2
+            else:
+                person_pos_2 = s_position - move_dist_2
+        else:
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                person_pos_2 = s_position - move_dist_2
+            else:
+                person_pos_2 = s_position + move_dist_2
+
+    return (person_det_2, person_pos_2)
 
 def moveHead(position, servo_pos):
     if SERVO:
@@ -417,15 +367,10 @@ def servo_roam(roam_cnt, servo_pos, servo_dir):
             set_servo_to_position(servo_pos)
 
     else:
-        if (LED_state == False):
-            LED_state = True
-#                        debug_print('Turning LED on')
-            GPIO.output(LED_GPIO_PIN, LED_state)
-        else:
-            LED_state = False
-#                        debug_print('Turning LED off')
-            GPIO.output(LED_GPIO_PIN, LED_state)
-        time.sleep(0.5)
+# center the servo when stalled out
+        servo_pos = \
+            set_servo_to_position(CTR_SERVO_POSITION)
+
 # Start roaming again if no action
         if SERVO and ROAM and roam_cnt >= ROAM_MAX*2:
             roam_cnt = 0
@@ -639,8 +584,8 @@ px=[0]*4
 py=[0]*4
 omron_error_count = 0
 omron_read_count = 0
-previousHitCnt = 0
-hitCnt = 0
+previous_hit_count = 0
+hit_count = 0
 hit_array=[0]*4
 # initialize the servo to face directly forward
 servo_position = CTR_SERVO_POSITION
@@ -906,8 +851,20 @@ try:
             p_detect_count  = 0
             roam_count = 0
 
+#############################
+# Inner while loop
+#############################
         while True: # do this loop until a person shows up
          
+            if (LED_state == False):
+                LED_state = True
+#                debug_print('Turning LED on')
+                GPIO.output(LED_GPIO_PIN, LED_state)
+            else:
+                LED_state = False
+#                debug_print('Turning LED off')
+                GPIO.output(LED_GPIO_PIN, LED_state)
+                
             time.sleep(MEASUREMENT_WAIT_PERIOD)
 
             for event in pygame.event.get():
@@ -978,8 +935,8 @@ try:
 # Analyze sensor data
 ###########################
 
-            previousHitCnt = hitCnt
-            hit_array, hitCnt = get_hit_array(temperature_array)
+            previous_hit_count = hit_count
+            hit_array, hit_count = get_hit_array(temperature_array)
 
 ###########################
 # Burn Hazard Detected !
@@ -1029,8 +986,6 @@ try:
                 p_detect_count = 0
                 person = 0
                 burn_hazard = 0
-                LED_state = False
-                GPIO.output(LED_GPIO_PIN, LED_state)
                 if MONITOR:
                     screen.fill(name_to_rgb('white'), message_area)
                     text = font.render("Waiting...", 1, \
@@ -1040,7 +995,7 @@ try:
                     screen.blit(text, textpos)
     # update the screen
                     pygame.display.update()
-                if (hitCnt == 0 or previousHitCnt == 0):
+                if (hit_count == 0 or previous_hit_count == 0):
                     personState = STATE_NOTHING
                 else:
                     personState = STATE_POSSIBLE
@@ -1062,9 +1017,9 @@ try:
                 debug_print('STATE: POSSIBLE: No Person cnt: ' \
                            +str(no_person_count))
                 no_person_count += 1
-                if (hitCnt == 0 or previousHitCnt == 0):
+                if (hit_count == 0 or previous_hit_count == 0):
                     personState = STATE_NOTHING
-                elif (hitCnt == 1 and previousHitCnt >= 1):
+                elif (hit_count == 1 and previous_hit_count >= 1):
                     p_detect, p_pos = person_position_1_hit(room_temp, \
                         temperature_array, servo_position)
 #                    servo_position = moveHead(p_pos, servo_position)
@@ -1089,9 +1044,9 @@ try:
                 debug_print('STATE: LIKELY: No Person cnt: ' \
                             +str(no_person_count))
                 no_person_count += 1
-                if (hitCnt == 0 or previousHitCnt == 0):
+                if (hit_count == 0 or previous_hit_count == 0):
                     personState = STATE_POSSIBLE
-                elif (hitCnt == 1 and previousHitCnt >= 1):
+                elif (hit_count == 1 and previous_hit_count >= 1):
                     p_detect, p_pos = person_position_1_hit(room_temp, \
                         temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
@@ -1115,9 +1070,9 @@ try:
             elif (personState == STATE_PROBABLE):
                 debug_print('STATE: PROBABLE: No Person cnt: ' \
                             +str(no_person_count))
-                if (hitCnt == 0 or previousHitCnt == 0):
+                if (hit_count == 0 or previous_hit_count == 0):
                     personState = STATE_LIKELY
-                elif (hitCnt == 1 and previousHitCnt >= 1):
+                elif (hit_count == 1 and previous_hit_count >= 1):
                     p_detect, p_pos = person_position_1_hit(room_temp, \
                         temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
@@ -1153,10 +1108,10 @@ try:
                            ' Max: '+"%.1f"%max(temperature_array)+ \
                            ' Servo: '+str(servo_position)+' CPU: ' \
                            +str(CPUtemp))
-                if (hitCnt == 0 or previousHitCnt == 0):
+                if (hit_count == 0 or previous_hit_count == 0):
                     sayGoodBye()
                     personState = STATE_PROBABLE
-                elif (hitCnt == 1 and previousHitCnt >= 1):
+                elif (hit_count == 1 and previous_hit_count >= 1):
                     p_detect, p_pos = person_position_1_hit(room_temp, \
                         temperature_array, servo_position)
                     servo_position = moveHead(p_pos, servo_position)
