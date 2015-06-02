@@ -303,7 +303,7 @@ def set_servo_to_position (new_position):
             elif new_position > MAX_SERVO_POSITION:
                 new_position = MAX_SERVO_POSITION
 
-        debugPrint('Desired servo position: '+str(new_position))
+#        debugPrint('Desired servo position: '+str(new_position))
             
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             if (new_position >= MAX_SERVO_POSITION and new_position <= MIN_SERVO_POSITION):
@@ -324,7 +324,7 @@ def set_servo_to_position (new_position):
             else:
                 debugPrint('ERROR: set_servo_to_position L-H=CCW position out of range: '+str(new_position)+' min= '+str(MIN_SERVO_POSITION)+' max = '+str(MAX_SERVO_POSITION))
 
-            debugPrint('Setting servo to position: '+str(final_position))
+            debugPrint('SERVO_MOVE: '+str(final_position))
 
         return final_position
 
@@ -333,8 +333,6 @@ def get_hit_array(room, t_array, s_position):
     Used to fill a 4x4 array with a person "hit" temperature logical value
     """
     hitCount = 0
-
-    debugPrint('person temp threshold = '+str(PERSON_TEMP_THRESHOLD))
 
     hit_count=[0]*OMRON_DATA_LIST
     t_delta=[0.0]*OMRON_DATA_LIST       # holds the difference between threshold and actual
@@ -347,8 +345,8 @@ def get_hit_array(room, t_array, s_position):
             hitCount += 1
             
 #    debugPrint('Hit count = '+str(hit_count))
-    debugPrint('Temperature deltas')
-    print_temps(t_delta)
+#    debugPrint('Temperature deltas')
+#    print_temps(t_delta)
      
 # use hit counts as a weighting factor: 1 hit = x percent increase
     h_delta[0] = hit_count[12]+hit_count[13]+hit_count[14]+hit_count[15] # add up the far left column
@@ -356,7 +354,7 @@ def get_hit_array(room, t_array, s_position):
     h_delta[2] = hit_count[4]+hit_count[5]+hit_count[6]+hit_count[7] 
     h_delta[3] = hit_count[0]+hit_count[1]+hit_count[2]+hit_count[3] 
 
-    debugPrint('hit count delta: '+str(h_delta[0])+str(h_delta[1])+str(h_delta[2])+str(h_delta[3]))
+    debugPrint('hit_count_delta: '+str(h_delta[0])+str(h_delta[1])+str(h_delta[2])+str(h_delta[3]))
 
     return h_delta, hitCount
 
@@ -899,6 +897,10 @@ try:
             debugPrint(logfile_open_string)
             debugPrint(logfile_args_string)
             debugPrint(logfile_temp_string)
+            debugPrint('person temp threshold = '+str(PERSON_TEMP_THRESHOLD))
+# Display the Omron internal temperature (room temp - something to compare signals with)
+            debugPrint('Omron D6T internal temp = '+"%.1f"%room_temp+' F')
+            debugPrint('Servo Type: '+str(SERVO_TYPE))
 
 # start roaming again            
             no_person_count = 0
@@ -954,9 +956,6 @@ try:
 # Display each element's temperature in F
 #            debugPrint('Temperature moving average')
 #            print_temps(temperature_moving_ave)
-
-# Display the Omron internal temperature (room temp - something to compare signals with)
-            debugPrint('Omron D6T internal temp = '+"%.1f"%room_temp+' F')
 
             if MONITOR:
 # create the IR pixels
@@ -1031,7 +1030,7 @@ try:
 #     Event 1: One or more sensors cross the person threshold - move to State 1
 #
             elif (personState == STATE_NOTHING):
-                debugPrint('STATE: NOTHING: No Person cnt: '+str(no_person_count))
+                debugPrint('STATE: NOTHING: No Person cnt: '+str(no_person_count)+' ROAM_COUNT = '+str(roam_count))
                 no_person_count += 1
                 p_detect_count = 0
                 person = 0
@@ -1053,11 +1052,8 @@ try:
 
     # put servo in roaming mode
 
-                debugPrint('Servo Type: '+str(SERVO_TYPE)+' Servo position: '+str(servo_position)+' Servo direction: '+str(servo_direction)+' Roam count = '+str(roam_count))
-
+                roam_count += 1
                 if SERVO and ROAM and roam_count <= ROAM_MAX:
-                    roam_count += 1
-
                     if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                         if (servo_position <= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
                             debugPrint('CCW limit hit, changing direction')
@@ -1080,38 +1076,41 @@ try:
                             servo_direction = SERVO_CUR_DIR_CCW
                             #play_sound(MAX_VOLUME, BORED_FILE_NAME)
                         
-                    debugPrint('Servo: Roaming. Position: '+str(servo_position))
-                    if servo_direction == SERVO_CUR_DIR_CCW:
-                        debugPrint(' Direction: CCW')
-                        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                            servo_position -= ROAMING_GRANULARTY
-                        else:
-                            servo_position += ROAMING_GRANULARTY
-                    if servo_direction == SERVO_CUR_DIR_CW:
-                        debugPrint(' Direction: CW')
-                        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                            servo_position += ROAMING_GRANULARTY
-                        else:
-                            servo_position -= ROAMING_GRANULARTY
-                      
                     if RAND:
+                        debugPrint('SERVO_RAND Pos: '+str(servo_position)+' Dir: '+str(servo_direction))
                         servo_position = random.randint(MIN_SERVO_POSITION, MAX_SERVO_POSITION)
-                        debugPrint('Random servo_position: '+str(servo_position))
-
-                    debugPrint('Servo: Setting position to: '+str(servo_position))
+                    else:
+                        debugPrint('SERVO_ROAM Pos: '+str(servo_position)+' Dir: '+str(servo_direction))
+                        if servo_direction == SERVO_CUR_DIR_CCW:
+                            debugPrint(' Direction: CCW')
+                            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                                servo_position -= ROAMING_GRANULARTY
+                            else:
+                                servo_position += ROAMING_GRANULARTY
+                        if servo_direction == SERVO_CUR_DIR_CW:
+                            debugPrint(' Direction: CW')
+                            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                                servo_position += ROAMING_GRANULARTY
+                            else:
+                                servo_position -= ROAMING_GRANULARTY
+                      
                     servo_position = set_servo_to_position(servo_position)
+
                 else:
-                    debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
-                    debugPrint('LED_state = '+str(LED_state))
+#                    debugPrint('Roam count maximum reached; roaming stopped until person detected. Roam count = '+str(roam_count))
+#                    debugPrint('LED_state = '+str(LED_state))
                     if (LED_state == False):
                         LED_state = True
-                        debugPrint('Turning LED on')
+#                        debugPrint('Turning LED on')
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     else:
                         LED_state = False
-                        debugPrint('Turning LED off')
+#                        debugPrint('Turning LED off')
                         GPIO.output(LED_GPIO_PIN, LED_state)
                     time.sleep(0.5)
+# Start roaming again if no action
+                    if SERVO and ROAM and roam_count >= ROAM_MAX*2:
+                        roam_count = 0
 
                 prevPersonState = STATE_NOTHING
                     
@@ -1124,7 +1123,7 @@ try:
 #     Event 2: More than one hit - state 2
 #
             elif (personState == STATE_POSSIBLE):
-                debugPrint('STATE: POSSIBLE')
+                debugPrint('STATE: POSSIBLE: No Person cnt: '+str(no_person_count))
                 no_person_count += 1
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_NOTHING
@@ -1146,7 +1145,7 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
             elif (personState == STATE_LIKELY):
-                debugPrint('STATE: LIKELY')
+                debugPrint('STATE: LIKELY: No Person cnt: '+str(no_person_count))
                 no_person_count += 1
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_POSSIBLE
@@ -1170,7 +1169,7 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, say hello, State 4
 #
             elif (personState == STATE_PROBABLE):
-                debugPrint('STATE: PROBABLE')
+                debugPrint('STATE: PROBABLE: No Person cnt: '+str(no_person_count))
                 if (hitCnt == 0 or previousHitCnt == 0):
                     personState = STATE_LIKELY
                 elif (hitCnt == 1 and previousHitCnt >= 1):
@@ -1194,7 +1193,7 @@ try:
 #     Event 2: more than one sensor, move head to position, stay in State 4
 #     
             elif (personState == STATE_DETECTED):
-                debugPrint('STATE: DETECTED')
+                debugPrint('STATE: DETECTED: No Person cnt: '+str(no_person_count))
                 roam_count = 0
                 no_person_count = 0
                 burn_hazard = 0
@@ -1202,7 +1201,7 @@ try:
                 GPIO.output(LED_GPIO_PIN, LED_state)
                 p_detect_count += 1
                 CPUtemp = getCPUtemperature()
-                debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
+                debugPrint('Person_count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
                 if (hitCnt == 0 or previousHitCnt == 0):
                     sayGoodBye()
                     personState = STATE_PROBABLE
