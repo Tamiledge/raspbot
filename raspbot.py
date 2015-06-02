@@ -59,43 +59,6 @@ def print_temps(temp_list):
     debug_print("%.1f"%temp_list[15]+' '+"%.1f"%temp_list[11]+ \
                ' '+"%.1f"%temp_list[7]+' '+"%.1f"%temp_list[3]+' ')
 
-def get_hit_array(t_array):
-    """
-    Used to fill a 4x4 array with a person "hit" temperature logical
-    """
-    hit_count_gha = 0
-
-    hit_array_temp = [0]*OMRON_DATA_LIST
-    h_delta = [0]*4
-
-# go through each array element to find person "hits"
-# max hit count is 4 unless there is a burn hazard
-    for element in range(0, OMRON_DATA_LIST):
-        if (t_array[element] > BURN_HAZARD_TEMP):     # a hazardous temp
-            hit_array_temp[element] = 10
-            hit_count_gha += 1
-            
-        elif (t_array[element] > PERSON_TEMP_THRESHOLD): # a person temp
-            hit_array_temp[element] += 1
-            hit_count_gha += 1
-
-        else:
-            hit_array_temp[element] = 0
-            
-# use hit counts as a weighting factor: 1 hit = x percent increase
-    # far left column
-    h_delta[0] = hit_array_temp[12]+hit_array_temp[13]+ \
-                 hit_array_temp[14]+hit_array_temp[15]
-    h_delta[1] = hit_array_temp[8]+hit_array_temp[9]+ \
-                 hit_array_temp[10]+hit_array_temp[11] 
-    h_delta[2] = hit_array_temp[4]+hit_array_temp[5]+ \
-                 hit_array_temp[6]+hit_array_temp[7] 
-    # far right column
-    h_delta[3] = hit_array_temp[0]+hit_array_temp[1]+ \
-                 hit_array_temp[2]+hit_array_temp[3] 
-
-    return h_delta, hit_count_gha
-
 def set_servo_to_position (new_position):
     """
     Moves the servo to a new position
@@ -150,7 +113,7 @@ NEAR_THREE = 30
 # 1110 hits = NEAR_THREE CW
 # 1111 hits = no change
 
-def person_position_1_hit(room, t_array, s_position):
+def person_position_1_hit(hit_array_1, s_position):
     """
     Detect a persons presence using "greater than one algorithm"
     returns (TRUE if person detected, approximate person position)
@@ -159,8 +122,6 @@ def person_position_1_hit(room, t_array, s_position):
     person_pos_1 = s_position
     move_dist_1 = 0
     move_cw_1 = True
-
-    hit_array_1, hit_count_1 = get_hit_array(t_array)
 
     if (hit_array_1[1] >= 1 and hit_array_1[2] >= 1):
         # person is centered
@@ -201,10 +162,6 @@ def person_position_1_hit(room, t_array, s_position):
         # no person detected
         person_det_1 = False
 
-    debug_print('hits(1): '+str(hit_array_1[0])+str(hit_array_1[1])+ \
-               str(hit_array_1[2])+str(hit_array_1[3])+ \
-                ' delta(1): '+str(move_dist_1))
-
     if (move_dist_1 > 0):
         if (move_cw_1):
             if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
@@ -219,7 +176,7 @@ def person_position_1_hit(room, t_array, s_position):
 
     return (person_det_1, person_pos_1)
 
-def person_position_2_hit(room, t_array, s_position):
+def person_position_2_hit(hit_array_2, s_position):
     """
     Detect a persons presence using the "greater than two algorithm"
     returns (TRUE if person detected, approximate person position)
@@ -228,8 +185,6 @@ def person_position_2_hit(room, t_array, s_position):
     person_pos_2 = s_position
     move_dist_2 = 0
     move_cw_2 = True
-
-    hit_array_2, hit_count_2 = get_hit_array(t_array)
 
 # First, look for > two hits in a single column
     if (hit_array_2[1] >= 2 and hit_array_2[2] >= 2):
@@ -262,10 +217,6 @@ def person_position_2_hit(room, t_array, s_position):
     else:
         # no person detected
         person_det_2 = False
-
-    debug_print('hits(2): '+str(hit_array_2[0])+str(hit_array_2[1])+ \
-               str(hit_array_2[2])+str(hit_array_2[3])+ \
-                ' delta(2): '+str(move_dist_2))
 
     if (move_dist_2 > 0):
         if (move_cw_2):
@@ -586,6 +537,7 @@ omron_error_count = 0
 omron_read_count = 0
 previous_hit_count = 0
 hit_count = 0
+hit_array_temp = [0]*OMRON_DATA_LIST
 hit_array=[0]*4
 # initialize the servo to face directly forward
 servo_position = CTR_SERVO_POSITION
@@ -796,6 +748,8 @@ try:
     STATE_DETECTED = 4
     personState = STATE_NOTHING
     prevPersonState = STATE_NOTHING
+    POSSIBLE_PERSON_MAX = 10 # after 10 one-hits, move head
+    possible_person = 0
 
 #############################
 # Main while loop
@@ -936,13 +890,46 @@ try:
 ###########################
 
             previous_hit_count = hit_count
-            hit_array, hit_count = get_hit_array(temperature_array)
+#            hit_array, hit_count = get_hit_array(temperature_array)
+            hit_count = 0
+
+            # go through each array element to find person "hits"
+            # max hit count is 4 unless there is a burn hazard
+            for element in range(0, OMRON_DATA_LIST):
+                if (temperature_array[element] > \
+                    BURN_HAZARD_TEMP):
+                    hit_array_temp[element] = 10
+                    hit_count += 1
+                    
+                elif (temperature_array[element] > \
+                      PERSON_TEMP_THRESHOLD):
+                    hit_array_temp[element] += 1
+                    hit_count += 1
+
+                else:
+                    hit_array_temp[element] = 0
+                    
+            # far left column
+            hit_array[0] = hit_array_temp[12]+hit_array_temp[13]+ \
+                         hit_array_temp[14]+hit_array_temp[15]
+            hit_array[1] = hit_array_temp[8]+hit_array_temp[9]+ \
+                         hit_array_temp[10]+hit_array_temp[11] 
+            hit_array[2] = hit_array_temp[4]+hit_array_temp[5]+ \
+                         hit_array_temp[6]+hit_array_temp[7] 
+            # far right column
+            hit_array[3] = hit_array_temp[0]+hit_array_temp[1]+ \
+                         hit_array_temp[2]+hit_array_temp[3] 
+
+            debug_print('hit array: '+str(hit_array[0])+ \
+                        str(hit_array[1])+str(hit_array[2])+ \
+                        str(hit_array[3]))
 
 ###########################
 # Burn Hazard Detected !
 ###########################
             if max(temperature_array) > BURN_HAZARD_TEMP:
                 roam_count = 0
+                possible_person = 0
                 burn_hazard = 1
                 LED_state = True
                 GPIO.output(LED_GPIO_PIN, LED_state)
@@ -984,6 +971,7 @@ try:
                            +str(roam_count))
                 no_person_count += 1
                 p_detect_count = 0
+                possible_person = 0
                 person = 0
                 burn_hazard = 0
                 if MONITOR:
@@ -1020,10 +1008,13 @@ try:
                 if (hit_count == 0 or previous_hit_count == 0):
                     personState = STATE_NOTHING
                 elif (hit_count == 1 and previous_hit_count >= 1):
-                    p_detect, p_pos = person_position_1_hit(room_temp, \
-                        temperature_array, servo_position)
-#                    servo_position = moveHead(p_pos, servo_position)
-#                    personState = STATE_POSSIBLE
+                    p_detect, p_pos = \
+                        person_position_1_hit(hit_array, servo_position)
+                    # stay in possible state
+                    possible_person += 1
+                    if (possible_person > POSSIBLE_PERSON_MAX):
+                        possible_person = 0
+                        servo_position = moveHead(p_pos, servo_position)
                 else:
                     personState = STATE_LIKELY
 
@@ -1047,13 +1038,14 @@ try:
                 if (hit_count == 0 or previous_hit_count == 0):
                     personState = STATE_POSSIBLE
                 elif (hit_count == 1 and previous_hit_count >= 1):
-                    p_detect, p_pos = person_position_1_hit(room_temp, \
-                        temperature_array, servo_position)
+                    p_detect, p_pos = \
+                        person_position_1_hit(hit_array, \
+                                              servo_position)
                     servo_position = moveHead(p_pos, servo_position)
 #                    personState = STATE_LIKELY
                 else:
-                    p_detect, p_pos = person_position_2_hit(room_temp, \
-                        temperature_array, servo_position)
+                    p_detect, p_pos = person_position_2_hit(hit_array, \
+                                                servo_position)
                     servo_position = moveHead(p_pos, servo_position)
                     personState = STATE_PROBABLE
                 
@@ -1073,13 +1065,14 @@ try:
                 if (hit_count == 0 or previous_hit_count == 0):
                     personState = STATE_LIKELY
                 elif (hit_count == 1 and previous_hit_count >= 1):
-                    p_detect, p_pos = person_position_1_hit(room_temp, \
-                        temperature_array, servo_position)
+                    p_detect, p_pos = \
+                        person_position_1_hit(hit_array, \
+                                              servo_position)
                     servo_position = moveHead(p_pos, servo_position)
 #                    personState = STATE_LIKELY
                 else:
-                    p_detect, p_pos = person_position_2_hit(room_temp, \
-                        temperature_array, servo_position)
+                    p_detect, p_pos = person_position_2_hit(hit_array, \
+                                                    servo_position)
                     servo_position = moveHead(p_pos, servo_position)
                     sayHello()
                     personState = STATE_DETECTED
@@ -1100,6 +1093,7 @@ try:
                 roam_count = 0
                 no_person_count = 0
                 burn_hazard = 0
+                possible_person = 0
                 LED_state = True
                 GPIO.output(LED_GPIO_PIN, LED_state)
                 p_detect_count += 1
@@ -1112,14 +1106,15 @@ try:
                     sayGoodBye()
                     personState = STATE_PROBABLE
                 elif (hit_count == 1 and previous_hit_count >= 1):
-                    p_detect, p_pos = person_position_1_hit(room_temp, \
-                        temperature_array, servo_position)
+                    p_detect, p_pos = \
+                        person_position_1_hit(hit_array, \
+                                              servo_position)
                     servo_position = moveHead(p_pos, servo_position)
 #                    sayGoodBye()
 #                    personState = STATE_NOTHING
                 else:
-                    p_detect, p_pos = person_position_2_hit(room_temp, \
-                        temperature_array, servo_position)
+                    p_detect, p_pos = person_position_2_hit(hit_array, \
+                                                servo_position)
                     servo_position = moveHead(p_pos, servo_position)
 #                    personState = STATE_DETECTED
 
