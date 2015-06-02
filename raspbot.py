@@ -761,7 +761,7 @@ try:
 
     debugPrint('Looking for a person')
 
-    no_person_count = 99
+    no_person_count = 0
     p_detect = False
     p_detect_count = 0      # This is used to lessen the number of repeat "hello" and "goodbye" messages.
                             # Once a person is detected, we assume they will be there for a short time,
@@ -791,7 +791,7 @@ try:
     CPU_115_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-115a.mp3"
     CPU_120_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-120a.mp3"
     CPU_125_FILE_NAME = "/home/pi/projects_ggg/raspbot/snd/girl-125a.mp3"
-    
+# the CPU can reach 105 easily, so, normally this is turned off    
     CPU_105_ON = False       # set to true to test CPU temp warnings, otherwise set to false
 
 ##    if CONNECTED:
@@ -861,30 +861,27 @@ try:
     loop_count = 0
     while True:                 # The main loop
         loop_count += 1
-        debugPrint('loop_count = '+str(loop_count))
         CPUtemp = getCPUtemperature()
-        debugPrint('\r\nPerson count: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
-        if loop_count >= LOG_MAX:   # periododically, write the log file to disk
-
+        debugPrint('\r\n*************************** MAIN_WHILE_LOOP: '+str(loop_count)+'\r\nPcount: '+str(p_detect_count)+' Max: '+"%.1f"%max(temperature_array)+' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
 # Check for overtemp
-            CPUtemp = getCPUtemperature()
-            if (CPUtemp >= 105.0):
-                if CPU_105_ON:
-                    play_sound(MAX_VOLUME, CPU_105_FILE_NAME)
-                    debugPrint('Played 105 audio')
-            elif (CPUtemp >= 110.0):
-                play_sound(MAX_VOLUME, CPU_110_FILE_NAME)
-                debugPrint('Played 110 audio')
-            elif (CPUtemp >= 115.0):
-                play_sound(MAX_VOLUME, CPU_115_FILE_NAME)
-                debugPrint('Played 115 audio')
-            elif (CPUtemp >= 120.0):
-                play_sound(MAX_VOLUME, CPU_120_FILE_NAME)
-                debugPrint('Played 120 audio')
-            elif (CPUtemp >= 125.0):
-                play_sound(MAX_VOLUME, CPU_125_FILE_NAME)
-                debugPrint('Played 125 audio')
+        if (CPUtemp >= 105.0):
+            if CPU_105_ON:
+                play_sound(MAX_VOLUME, CPU_105_FILE_NAME)
+#                    debugPrint('Played 105 audio')
+        elif (CPUtemp >= 110.0):
+            play_sound(MAX_VOLUME, CPU_110_FILE_NAME)
+#                debugPrint('Played 110 audio')
+        elif (CPUtemp >= 115.0):
+            play_sound(MAX_VOLUME, CPU_115_FILE_NAME)
+#                debugPrint('Played 115 audio')
+        elif (CPUtemp >= 120.0):
+            play_sound(MAX_VOLUME, CPU_120_FILE_NAME)
+#                debugPrint('Played 120 audio')
+        elif (CPUtemp >= 125.0):
+            play_sound(MAX_VOLUME, CPU_125_FILE_NAME)
+#                debugPrint('Played 125 audio')
 
+        if loop_count >= LOG_MAX:   # periododically, write the log file to disk
             debugPrint('\r\nLoop count max reached ('+str(loop_count)+' at '+str(datetime.now()))
             loop_count = 0      # reset the counter
             debugPrint('\r\nClosing log file at '+str(datetime.now()))
@@ -940,7 +937,7 @@ try:
             omron_read_count += 1
          
 # Display each element's temperature in F
-            debugPrint('New temperature measurement')
+#            debugPrint('New temperature measurement')
             print_temps(temperature_array)
 
             if bytes_read != OMRON_BUFFER_LENGTH: # sensor problem
@@ -1053,7 +1050,7 @@ try:
     # put servo in roaming mode
 
                 roam_count += 1
-                if SERVO and ROAM and roam_count <= ROAM_MAX:
+                if SERVO and (ROAM or RAND) and roam_count <= ROAM_MAX:
                     if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                         if (servo_position <= SERVO_LIMIT_CCW and servo_direction == SERVO_CUR_DIR_CCW):
                             debugPrint('CCW limit hit, changing direction')
@@ -1078,17 +1075,16 @@ try:
                         
                     if RAND:
                         debugPrint('SERVO_RAND Pos: '+str(servo_position)+' Dir: '+str(servo_direction))
-                        servo_position = random.randint(MIN_SERVO_POSITION, MAX_SERVO_POSITION)
+                        servo_position = random.randint(MAX_SERVO_POSITION, MIN_SERVO_POSITION)
                     else:
-                        debugPrint('SERVO_ROAM Pos: '+str(servo_position)+' Dir: '+str(servo_direction))
                         if servo_direction == SERVO_CUR_DIR_CCW:
-                            debugPrint(' Direction: CCW')
+                            debugPrint('SERVO_ROAM Pos: '+str(servo_position)+' Direction: CCW')
                             if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                                 servo_position -= ROAMING_GRANULARTY
                             else:
                                 servo_position += ROAMING_GRANULARTY
                         if servo_direction == SERVO_CUR_DIR_CW:
-                            debugPrint(' Direction: CW')
+                            debugPrint('SERVO_ROAM Pos: '+str(servo_position)+' Direction: CW')
                             if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                                 servo_position += ROAMING_GRANULARTY
                             else:
