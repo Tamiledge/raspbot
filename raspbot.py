@@ -197,14 +197,16 @@ def person_position_2_hit(hit_array_2, s_position):
           hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
         move_dist_2 = FAR_ONE
         move_cw_2 = True
-    elif (hit_array_2[0] <= 1 and hit_array_2[1] >= 2 and \
-          hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
-        move_dist_2 = NEAR_ONE
-        move_cw_2 = True
-    elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
-          hit_array_2[2] >= 2 and hit_array_2[3] <= 1):
-        move_dist_2 = NEAR_ONE
-        move_cw_2 = False
+# Sometimes a stationary person can show up 0200 and 0020 alternatively
+# without moving causing the robot to oscillate
+##    elif (hit_array_2[0] <= 1 and hit_array_2[1] >= 2 and \
+##          hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
+##        move_dist_2 = NEAR_ONE
+##        move_cw_2 = True
+##    elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
+##          hit_array_2[2] >= 2 and hit_array_2[3] <= 1):
+##        move_dist_2 = NEAR_ONE
+##        move_cw_2 = False
     elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
           hit_array_2[2] <= 1 and hit_array_2[3] >= 2):
         move_dist_2 = FAR_ONE
@@ -1020,10 +1022,13 @@ try:
                     p_detect, p_pos = \
                         person_position_1_hit(hit_array, servo_position)
                     # stay in possible state
-                    possible_person += 1
-                    if (possible_person > POSSIBLE_PERSON_MAX):
-                        possible_person = 0
-                        servo_position = move_head(p_pos, servo_position)
+                    if (p_detect):
+                        possible_person += 1
+                        if (possible_person > POSSIBLE_PERSON_MAX):
+                            possible_person = 0
+                            servo_position = move_head(p_pos, servo_position)
+                    else:
+                        personState = STATE_NOTHING
                 else:
                     personState = STATE_LIKELY
 
@@ -1043,17 +1048,10 @@ try:
             elif (personState == STATE_LIKELY):
                 debug_print('STATE: LIKELY: No Person cnt: ' \
                             +str(no_person_count))
+                possible_person = 0
                 no_person_count += 1
                 if (hit_count == 0 or previous_hit_count == 0):
-                    personState = STATE_POSSIBLE
-                elif (hit_count == 1 and previous_hit_count >= 1):
-                    p_detect, p_pos = \
-                        person_position_1_hit(hit_array, \
-                                              servo_position)
-                    if (not p_detect):
-                        personState = STATE_POSSIBLE
-                    elif (hit_count > PERSON_HIT_COUNT):
-                        personState = STATE_PROBABLE
+                    personState = STATE_NOTHING
                 else:
                     p_detect, p_pos = person_position_2_hit(hit_array, \
                                                 servo_position)
@@ -1076,6 +1074,7 @@ try:
 #     Event 2: more than one sensor has a hit, move head, say hello
 #
             elif (personState == STATE_PROBABLE):
+                possible_person = 0
                 debug_print('STATE: PROBABLE: No Person cnt: ' \
                             +str(no_person_count))
                 if (hit_count == 0 or previous_hit_count == 0):
