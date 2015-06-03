@@ -446,6 +446,7 @@ ROAMING_GRANULARTY = 50
 HIT_WEIGHT_PERCENT = 0.1
 PERSON_TEMP_SUM_THRESHOLD = 3
 DETECT_COUNT_THRESH = 3
+PERSON_HIT_COUNT = 4
 
 # Strange things happen: Some servos move CW and others move CCW for the
 # same number. # it is possible that the "front" of the servo might be
@@ -671,7 +672,7 @@ try:
 # seconds to allow temps to settle once the head has moved
     SETTLE_TIME = 1.0
 # minimum microseconds if PID error is less than this head will stop
-    MINIMUM_ERROR_GRANULARITY = 50
+    MINIMUM_ERROR_GRANULARITY = 20
 
     HELLO_FILE_NAME = \
         "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
@@ -926,9 +927,10 @@ try:
             hit_array[3] = hit_array_temp[0]+hit_array_temp[1]+ \
                          hit_array_temp[2]+hit_array_temp[3] 
 
-            debug_print('\r\n-----------------------\r\n   hit array: '+\
+            debug_print('\r\n-----------------------\r\nhit array: '+\
                         str(hit_array[0])+str(hit_array[1])+ \
                         str(hit_array[2])+str(hit_array[3])+ \
+                        '\r\nhit count: '+str(hit_count)+ \
                         '\r\n-----------------------')
 
 ###########################
@@ -1048,13 +1050,20 @@ try:
                     p_detect, p_pos = \
                         person_position_1_hit(hit_array, \
                                               servo_position)
-                    servo_position = move_head(p_pos, servo_position)
-#                    personState = STATE_LIKELY
+                    if (not p_detect):
+                        personState = STATE_POSSIBLE
+                    elif (hit_count > PERSON_HIT_COUNT):
+                        personState = STATE_PROBABLE
                 else:
                     p_detect, p_pos = person_position_2_hit(hit_array, \
                                                 servo_position)
-                    servo_position = move_head(p_pos, servo_position)
-                    personState = STATE_PROBABLE
+                    if (not p_detect):
+                        personState = STATE_POSSIBLE
+                    else:
+                        servo_position = move_head(p_pos, servo_position)
+                        
+                    if (hit_count > PERSON_HIT_COUNT):
+                        personState = STATE_PROBABLE
                 
                 prevPersonState = STATE_LIKELY
 
@@ -1075,14 +1084,19 @@ try:
                     p_detect, p_pos = \
                         person_position_1_hit(hit_array, \
                                               servo_position)
-                    servo_position = move_head(p_pos, servo_position)
-#                    personState = STATE_LIKELY
+                    if (p_detect):
+                        servo_position = move_head(p_pos, servo_position)
+                    else:
+                        personState = STATE_LIKELY
                 else:
                     p_detect, p_pos = person_position_2_hit(hit_array, \
                                                     servo_position)
-                    servo_position = move_head(p_pos, servo_position)
-                    say_hello()
-                    personState = STATE_DETECTED
+                    if (p_detect):
+                        servo_position = move_head(p_pos, servo_position)
+                        say_hello()
+                        personState = STATE_DETECTED
+                    else:
+                        personState = STATE_LIKELY
 
                 prevPersonState = STATE_PROBABLE
 
@@ -1111,19 +1125,17 @@ try:
                            +str(CPUtemp))
                 if (hit_count == 0 or previous_hit_count == 0):
                     say_goodbye()
-                    personState = STATE_PROBABLE
-                elif (hit_count == 1 and previous_hit_count >= 1):
-                    p_detect, p_pos = \
-                        person_position_1_hit(hit_array, \
-                                              servo_position)
-                    servo_position = move_head(p_pos, servo_position)
-#                    say_goodbye()
-#                    personState = STATE_NOTHING
+                    personState = STATE_NOTHING
+                elif (hit_count >= 1 and hit_count <= PERSON_HIT_COUNT ):
+                    personState = STATE_POSSIBLE
+# hit count needs to be above PERSON_HIT_COUNT to validate a person
                 else:
                     p_detect, p_pos = person_position_2_hit(hit_array, \
                                                 servo_position)
-                    servo_position = move_head(p_pos, servo_position)
-#                    personState = STATE_DETECTED
+                    if (p_detect):
+                        servo_position = move_head(p_pos, servo_position)
+                    else:
+                        personState = STATE_LIKELY
 
                 prevPersonState = STATE_DETECTED
 
