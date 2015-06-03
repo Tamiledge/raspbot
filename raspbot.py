@@ -23,7 +23,7 @@
 """
 import smbus
 import sys
-import getopt
+#import getopt
 import pigpio
 import time
 from datetime import datetime
@@ -33,9 +33,9 @@ from pygame.locals import Rect, QUIT, KEYDOWN, K_q, K_ESCAPE
 import random
 from omron_src import omron_init     # contains omron functions
 from omron_src import omron_read     # contains omron functions
-import urllib, pycurl, os   # needed for text to speech
+#import urllib, pycurl, os   # needed for text to speech
 from pid import PID
-from raspbot_functions import *
+from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb
 
 def debug_print(message):
     """
@@ -64,7 +64,7 @@ def set_servo_to_position (new_position):
     Moves the servo to a new position
     """
 
-    if SERVO:
+    if SERVO_ENABLED:
     # make sure we don't go out of bounds
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             if new_position == 0:
@@ -92,7 +92,7 @@ def set_servo_to_position (new_position):
             *MINIMUM_SERVO_GRANULARITY
 
         debug_print('SERVO_MOVE: '+str(final_position))
-        SERVO.set_servo(SERVO_GPIO_PIN, final_position)
+        SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, final_position)
            
         return final_position
 
@@ -244,7 +244,7 @@ def move_head(position, servo_pos):
     """
     Move the robot head to a specific position
     """
-    if SERVO:
+    if SERVO_ENABLED:
 # face the servo twoards the heat
         # setpoint is the desired position
         PID_CONTROLLER.setPoint(position)
@@ -342,7 +342,7 @@ def say_hello():
     if MONITOR:
         SCREEN_DISPLAY.fill(name_to_rgb('white'), MESSAGE_AREA)
         txt = FONT.render("Hello!", 1, name_to_rgb('red'))
-        txtpos = text.get_rect()
+        txtpos = SCREEN_TEXT.get_rect()
         txtpos.center = MESSAGE_AREA_XY
         SCREEN_DISPLAY.blit(txt, txtpos)
 # update the screen
@@ -364,7 +364,7 @@ def say_goodbye():
     if MONITOR:
         SCREEN_DISPLAY.fill(name_to_rgb('white'), MESSAGE_AREA)
         txt = FONT.render("Good Bye!", 1, name_to_rgb('red'))
-        txtpos = text.get_rect()
+        txtpos = SCREEN_TEXT.get_rect()
         txtpos.center = MESSAGE_AREA_XY
         SCREEN_DISPLAY.blit(txt, txtpos)
 # update the screen
@@ -396,7 +396,7 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     Something bad happend; quit the program
     """
     debug_print(msg)
-    if SERVO:
+    if SERVO_ENABLED:
         servo_in.stop_servo(SERVO_GPIO_PIN)
     GPIO.output(LED_GPIO_PIN, LED_STATE)
     py_game.quit()
@@ -411,12 +411,45 @@ OMRON_BUFFER_LENGTH = 35    # Omron data buffer size
 OMRON_DATA_LIST = 16        # Omron data array - sixteen 16 bit words
 MAX_VOLUME = 1.0            # maximum speaker volume for pygame.mixer
 DEGREE_UNIT = 'F'           # F = Farenheit, C=Celcius
-MEASUREMENT_WAIT_PERIOD = 0.3     # time between Omron measurements
-SERVO = 1               # set this to 1 if the servo motor is wired up
-SERVO_GPIO_PIN = 11     # GPIO number (GPIO 11 aka. SCLK)
+MEASUREMENT_WAIT_PERIOD = 0.3   # time between Omron measurements
+SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
+SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
 LED_GPIO_PIN = 7    # GPIO number that the LED is connected to
                     # (BCM GPIO_04 (Pi Hat) is the same as BOARD pin 7)
                     # See "Raspberry Pi B+ J8 Header" diagram
+# GPIO assignments for the hit LEDs (three colors, red, yellow, green)
+#   red = burn hazard (hit_array[x] > 4
+#   yellow = possible person (hit_array[x] == 1
+#   green = person probable (hit_array[x] >=2 <= 4)
+#   dark = no hit detected (hit_array[x] = 0)
+#
+#   LEDs are connected to ground on one pin and the other three pins
+#       (RGY) take +3v through a 1k resistor. The LEDs are LUMEX
+#       SSL-LX5097 or DigiKey 67-2184-ND
+#
+#   LED0 (_RED, _YEL, _GRN) = hit_array[0] 
+#   LED1 (_RED, _YEL, _GRN) = hit_array[1] 
+#   LED2 (_RED, _YEL, _GRN) = hit_array[2] 
+#   LED3 (_RED, _YEL, _GRN) = hit_array[3] 
+LED0_RED = 11   # AKA: BCM GPIO 17
+LED0_YEL = 12   # AKA: BCM GPIO 18
+LED0_GRN = 13   # AKA: BCM GPIO 27
+
+LED1_RED = 15   # AKA: BCM GPIO 22
+LED1_YEL = 16   # AKA: BCM GPIO 23
+LED1_GRN = 18   # AKA: BCM GPIO 24
+
+LED2_RED = 22   # AKA: BCM GPIO 25
+LED2_YEL = 29   # AKA: BCM GPIO 5
+LED2_GRN = 31   # AKA: BCM GPIO 6
+
+LED3_RED = 32   # AKA: BCM GPIO 12
+LED3_YEL = 35   # AKA: BCM GPIO 19
+LED3_GRN = 36   # AKA: BCM GPIO 16
+
+LED_ON = True
+LED_OFF = False
+
 DEBUG = 0           # set this to 1 to see debug messages on monitor
 SCREEN_DIMENSIONS = [400, 600]  # setup IR window [0]= width [1]= height
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
@@ -428,7 +461,7 @@ LOG_MAX = 1200
 RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100  # temperature at which a warning is given
 TEMPMARGIN = 5          # degrees > than room temp to detect person
-PERSON_TEMP_THRESHOLD = 79      # degrees fahrenheit
+PERSON_TEMP_THRESHOLD = 79  # degrees fahrenheit
 MONITOR = 1             # assume a monitor is attached
 # Servo positions
 # Weirdness factor: Some servo's I used go in the reverse direction
@@ -501,7 +534,7 @@ if "-debug" in sys.argv:
     DEBUG = 1         # set this to 1 to see debug messages on monitor
 
 if "-noservo" in sys.argv:
-    SERVO = 0         # assume using servo is default
+    SERVO_ENABLED = 0         # assume using servo is default
 
 if "-nomonitor" in sys.argv:
     MONITOR = 0       # assume using servo is default
@@ -560,17 +593,45 @@ try:
     print ''
     if DEBUG:
         print 'DEBUG switch is on'
-    if SERVO:
+    if SERVO_ENABLED:
 # Initialize servo position
         GPIO.setmode(GPIO.BOARD)
         GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
-        SERVO = PWM.Servo()
-        SERVO.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
+        SERVO_HANDLE = PWM.Servo()
+        SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
         time.sleep(10.0)            # Wait a sec before starting
     else:
         print 'SERVO is off'
+
+# initialize LEDs
     LED_STATE = True
+    GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
     GPIO.output(LED_GPIO_PIN, LED_STATE)
+
+    GPIO.setup(LED0_RED, GPIO.OUT)
+    GPIO.output(LED0_RED, LED_ON)
+    GPIO.setup(LED0_YEL, GPIO.OUT)
+    GPIO.output(LED0_YEL, LED_ON)
+    GPIO.setup(LED0_GRN, GPIO.OUT)
+    GPIO.output(LED0_GRN, LED_ON)
+    GPIO.setup(LED1_RED, GPIO.OUT)
+    GPIO.output(LED1_RED, LED_ON)
+    GPIO.setup(LED1_YEL, GPIO.OUT)
+    GPIO.output(LED1_YEL, LED_ON)
+    GPIO.setup(LED1_GRN, GPIO.OUT)
+    GPIO.output(LED1_GRN, LED_ON)
+    GPIO.setup(LED2_RED, GPIO.OUT)
+    GPIO.output(LED2_RED, LED_ON)
+    GPIO.setup(LED2_YEL, GPIO.OUT)
+    GPIO.output(LED2_YEL, LED_ON)
+    GPIO.setup(LED2_GRN, GPIO.OUT)
+    GPIO.output(LED2_GRN, LED_ON)
+    GPIO.setup(LED3_RED, GPIO.OUT)
+    GPIO.output(LED3_RED, LED_ON)
+    GPIO.setup(LED3_YEL, GPIO.OUT)
+    GPIO.output(LED3_YEL, LED_ON)
+    GPIO.setup(LED3_GRN, GPIO.OUT)
+    GPIO.output(LED3_GRN, LED_ON)
 
 # intialize pigpio library and socket connection for daemon (pigpiod)
     PIGPIO_HANDLE = pigpio.pi()              # use defaults
@@ -582,8 +643,8 @@ try:
         omron_init(RASPI_I2C_CHANNEL, OMRON_1, PIGPIO_HANDLE, I2C_BUS)
 
     if OMRON1_HANDLE < 1:
-        if SERVO:
-            SERVO.stop_servo(SERVO_GPIO_PIN)
+        if SERVO_ENABLED:
+            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
         pygame.quit()
         sys.exit()
 
@@ -593,7 +654,8 @@ try:
     LOGFILE_OPEN_STRING = '\r\nStartup log file opened at ' \
                           +str(datetime.now())
     LOGFILE_ARGS_STRING = '\r\nDEBUG: '+str(DEBUG)+' SERVO: ' \
-                          +str(SERVO)+' MONITOR: '+str(MONITOR)+ \
+                          +str(SERVO_ENABLED)+' MONITOR: ' \
+                          +str(MONITOR)+ \
                           ' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
     LOGFILE_HANDLE.write(LOGFILE_OPEN_STRING)
     LOGFILE_HANDLE.write(LOGFILE_ARGS_STRING)
@@ -635,7 +697,8 @@ try:
         ROOM_TEMP_MSG_XY = (SCREEN_DIMENSIONS[0]/2, \
                         (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
 
-        MESSAGE_AREA = (0, SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, \
+        MESSAGE_AREA = (0, \
+                        SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, \
                         SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
         MESSAGE_AREA_XY = (SCREEN_DIMENSIONS[0]/2, \
                         (SCREEN_DIMENSIONS[1]/6)+ \
@@ -698,7 +761,7 @@ try:
 ##        CONNECTED = 1
 ##    except:
 ##        print "Not connected to internet"
-##        LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')        
+##        LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
 ##        CONNECTED = 0
         
 ###########################
@@ -759,9 +822,11 @@ try:
         MAIN_LOOP_COUNT += 1
         CPU_TEMP = getCPUtemperature()
         debug_print('\r\n^^^^^^^^^^^^^^^^^^^^\r\n    MAIN_WHILE_LOOP: '\
-                   +str(MAIN_LOOP_COUNT)+' Pcount: '+str(P_DETECT_COUNT)+\
-                   ' Servo: '+str(SERVO_POSITION)+' CPU: '+str(CPU_TEMP)+ \
-                   '\r\n^^^^^^^^^^^^^^^^^^^^')
+                    +str(MAIN_LOOP_COUNT)+' Pcount: ' \
+                    +str(P_DETECT_COUNT)+ \
+                    ' Servo: '+str(SERVO_POSITION)+' CPU: '+ \
+                    str(CPU_TEMP)+ \
+                    '\r\n^^^^^^^^^^^^^^^^^^^^')
 # Check for overtemp
         if (CPU_TEMP >= 105.0):
             if CPU_105_ON:
@@ -799,6 +864,10 @@ try:
 # Display the Omron internal temperature
             debug_print('Servo Type: '+str(SERVO_TYPE))
 
+# reinitialize the mixer; for some reason the audio drops out
+# after extended periods of operating time. See if this fixes
+            pygame.mixer.init()
+
 # start roaming again            
             NO_PERSON_COUNT = 0
             P_DETECT_COUNT  = 0
@@ -822,18 +891,19 @@ try:
 
             for event in pygame.event.get():
                 if event.type == QUIT:
-                    crash_msg = '\r\npygame event QUIT'
-                    crash_and_burn(crash_msg, pygame, SERVO, LOGFILE_HANDLE)
+                    CRASH_MSG = '\r\npygame event QUIT'
+                    crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, \
+                                   LOGFILE_HANDLE)
                 if event.type == KEYDOWN:
                     if event.key == K_q or event.key == K_ESCAPE:
-                        crash_msg = \
+                        CRASH_MSG = \
                         '\r\npygame event: keyboard q or esc pressed'
-                        crash_and_burn(crash_msg, pygame, \
-                                       SERVO, LOGFILE_HANDLE)
+                        crash_and_burn(CRASH_MSG, pygame, \
+                                       SERVO_HANDLE, LOGFILE_HANDLE)
 
 # read the raw temperature data
 # 
-            (bytes_read, TEMPERATURE_ARRAY, room_temp) = \
+            (BYTES_READ, TEMPERATURE_ARRAY, ROOM_TEMP) = \
                 omron_read(OMRON1_HANDLE, DEGREE_UNIT, \
                 OMRON_BUFFER_LENGTH, PIGPIO_HANDLE)
             OMRON_READ_COUNT += 1
@@ -842,39 +912,43 @@ try:
 #            debug_print('New temperature measurement')
 #            print_temps(TEMPERATURE_ARRAY)
 
-            if bytes_read != OMRON_BUFFER_LENGTH: # sensor problem
+            if BYTES_READ != OMRON_BUFFER_LENGTH: # sensor problem
                 OMRON_ERROR_COUNT += 1
                 debug_print( \
                     'ERROR: Omron thermal sensor failure! Bytes read: '\
-                    +str(bytes_read))
+                    +str(BYTES_READ))
                 FATAL_ERROR = 1
                 break
 
             if MONITOR:
 # create the IR pixels
-                for i in range(0,OMRON_DATA_LIST):
+                for i in range(0, OMRON_DATA_LIST):
 # This fills each array square with a color that matches the temp
-                    SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, \
-                                TEMPERATURE_ARRAY[i]), QUADRANT[i])
+                    SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
+                                MIN_TEMP, TEMPERATURE_ARRAY[i]), \
+                                QUADRANT[i])
 # Display temp value
                     if TEMPERATURE_ARRAY[i] > PERSON_TEMP_THRESHOLD:
-                        text = FONT.render("%.1f"%TEMPERATURE_ARRAY[i],\
-                                           1, name_to_rgb('red'))
+                        SCREEN_TEXT = \
+                            FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
+                                        1, name_to_rgb('red'))
                     else:
-                        text = FONT.render("%.1f"%TEMPERATURE_ARRAY[i],\
-                                           1, name_to_rgb('navy'))
-                    textpos = text.get_rect()
-                    textpos.center = CENTER[i]
-                    SCREEN_DISPLAY.blit(text, textpos)
+                        SCREEN_TEXT = \
+                            FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
+                                        1, name_to_rgb('navy'))
+                    SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+                    SCREEN_TEXT_POS.center = CENTER[i]
+                    SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
 
 # Create an area to display the room temp and messages
-                SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, MIN_TEMP, \
-                            room_temp), ROOM_TEMP_AREA)
-                text = FONT.render("Room: %.1f"%room_temp, 1, \
+                SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
+                                    MIN_TEMP, ROOM_TEMP), \
+                                    ROOM_TEMP_AREA)
+                SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP, 1, \
                                     name_to_rgb('navy'))
-                textpos = text.get_rect()
-                textpos.center = ROOM_TEMP_MSG_XY
-                SCREEN_DISPLAY.blit(text, textpos)
+                SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+                SCREEN_TEXT_POS.center = ROOM_TEMP_MSG_XY
+                SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
 
 # update the screen
                 pygame.display.update()
@@ -886,8 +960,9 @@ try:
             PREVIOUS_HIT_COUNT = HIT_COUNT
 #            HIT_ARRAY, HIT_COUNT = get_hit_array(TEMPERATURE_ARRAY)
             HIT_COUNT = 0
-            HIT_ARRAY = [0,0,0,0]
-            HIT_ARRAY_TEMP = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            HIT_ARRAY = [0, 0, 0, 0]
+            HIT_ARRAY_TEMP = \
+                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             # go through each array element to find person "hits"
             # max hit count is 4 unless there is a burn hazard
             for element in range(0, OMRON_DATA_LIST):
@@ -915,6 +990,46 @@ try:
             HIT_ARRAY[3] = HIT_ARRAY_TEMP[0]+HIT_ARRAY_TEMP[1]+ \
                          HIT_ARRAY_TEMP[2]+HIT_ARRAY_TEMP[3] 
 
+            GPIO.output(LED0_RED, LED_OFF)
+            GPIO.output(LED0_YEL, LED_OFF)
+            GPIO.output(LED0_GRN, LED_OFF)
+            if (HIT_ARRAY[0] == 1):
+                GPIO.output(LED0_YEL, LED_ON)
+            elif (HIT_ARRAY[0] >= 2 and HIT_ARRAY[0] <= 4):
+                GPIO.output(LED0_GRN, LED_ON)
+            elif (HIT_ARRAY[0] > 4):
+                GPIO.output(LED0_RED, LED_ON)
+                
+            GPIO.output(LED1_RED, LED_OFF)
+            GPIO.output(LED1_YEL, LED_OFF)
+            GPIO.output(LED1_GRN, LED_OFF)
+            if (HIT_ARRAY[1] == 1):
+                GPIO.output(LED1_YEL, LED_ON)
+            elif (HIT_ARRAY[1] >= 2 and HIT_ARRAY[1] <= 4):
+                GPIO.output(LED1_GRN, LED_ON)
+            elif (HIT_ARRAY[1] > 4):
+                GPIO.output(LED1_RED, LED_ON)
+                
+            GPIO.output(LED2_RED, LED_OFF)
+            GPIO.output(LED2_YEL, LED_OFF)
+            GPIO.output(LED2_GRN, LED_OFF)
+            if (HIT_ARRAY[2] == 1):
+                GPIO.output(LED2_YEL, LED_ON)
+            elif (HIT_ARRAY[2] >= 2 and HIT_ARRAY[2] <= 4):
+                GPIO.output(LED2_GRN, LED_ON)
+            elif (HIT_ARRAY[2] > 4):
+                GPIO.output(LED2_RED, LED_ON)
+                
+            GPIO.output(LED3_RED, LED_OFF)
+            GPIO.output(LED3_YEL, LED_OFF)
+            GPIO.output(LED3_GRN, LED_OFF)
+            if (HIT_ARRAY[3] == 1):
+                GPIO.output(LED3_YEL, LED_ON)
+            elif (HIT_ARRAY[3] >= 2 and HIT_ARRAY[3] <= 4):
+                GPIO.output(LED3_GRN, LED_ON)
+            elif (HIT_ARRAY[3] > 4):
+                GPIO.output(LED3_RED, LED_ON)
+                                 
             debug_print('\r\n-----------------------\r\nhit array: '+\
                         str(HIT_ARRAY[0])+str(HIT_ARRAY[1])+ \
                         str(HIT_ARRAY[2])+str(HIT_ARRAY[3])+ \
@@ -937,12 +1052,13 @@ try:
                 LED_STATE = True
                 GPIO.output(LED_GPIO_PIN, LED_STATE)
                 if MONITOR:
-                    SCREEN_DISPLAY.fill(name_to_rgb('red'), MESSAGE_AREA)
-                    text = FONT.render("WARNING! Burn danger!", 1, \
-                            name_to_rgb('yellow'))
-                    textpos = text.get_rect()
-                    textpos.center = MESSAGE_AREA_XY
-                    SCREEN_DISPLAY.blit(text, textpos)
+                    SCREEN_DISPLAY.fill(name_to_rgb('red'), \
+                                        MESSAGE_AREA)
+                    SCREEN_TEXT = FONT.render("WARNING! Burn danger!", \
+                                              1, name_to_rgb('yellow'))
+                    SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+                    SCREEN_TEXT_POS.center = MESSAGE_AREA_XY
+                    SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
 # update the screen
                     pygame.display.update()
 
@@ -987,12 +1103,13 @@ try:
                 PROBABLE_PERSON = 0
                 BURN_HAZARD = 0
                 if MONITOR:
-                    SCREEN_DISPLAY.fill(name_to_rgb('white'), MESSAGE_AREA)
-                    text = FONT.render("Waiting...", 1, \
+                    SCREEN_DISPLAY.fill(name_to_rgb('white'), \
+                                        MESSAGE_AREA)
+                    SCREEN_TEXT = FONT.render("Waiting...", 1, \
                                        name_to_rgb('blue'))
-                    textpos = text.get_rect()
-                    textpos.center = MESSAGE_AREA_XY
-                    SCREEN_DISPLAY.blit(text, textpos)
+                    SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+                    SCREEN_TEXT_POS.center = MESSAGE_AREA_XY
+                    SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
     # update the screen
                     pygame.display.update()
                 if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
@@ -1021,14 +1138,16 @@ try:
                 if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
                     PERSON_STATE = STATE_NOTHING
                 elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
-                    P_DETECT, p_pos = \
+                    P_DETECT, PERSON_POSITION = \
                         person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
                     # stay in possible state
                     if (P_DETECT):
                         POSSIBLE_PERSON += 1
                         if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
                             POSSIBLE_PERSON = 0
-                            SERVO_POSITION = move_head(p_pos, SERVO_POSITION)
+                            SERVO_POSITION = \
+                                move_head(PERSON_POSITION, \
+                                          SERVO_POSITION)
                     else:
                         PERSON_STATE = STATE_NOTHING
                 else:
@@ -1056,12 +1175,14 @@ try:
                 if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
                     PERSON_STATE = STATE_NOTHING
                 else:
-                    P_DETECT, p_pos = person_position_2_hit(HIT_ARRAY, \
-                                                SERVO_POSITION)
+                    P_DETECT, PERSON_POSITION = \
+                              person_position_2_hit(HIT_ARRAY, \
+                                                    SERVO_POSITION)
                     if (not P_DETECT):
                         PERSON_STATE = STATE_POSSIBLE
                     else:
-                        SERVO_POSITION = move_head(p_pos, SERVO_POSITION)
+                        SERVO_POSITION = move_head(PERSON_POSITION, \
+                                                   SERVO_POSITION)
                         
                     if (HIT_COUNT > PERSON_HIT_COUNT):
                         PERSON_STATE = STATE_PROBABLE
@@ -1084,18 +1205,21 @@ try:
                 if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
                     PERSON_STATE = STATE_LIKELY
                 elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
-                    P_DETECT, p_pos = \
+                    P_DETECT, PERSON_POSITION = \
                         person_position_1_hit(HIT_ARRAY, \
                                               SERVO_POSITION)
                     if (P_DETECT):
-                        SERVO_POSITION = move_head(p_pos, SERVO_POSITION)
+                        SERVO_POSITION = move_head(PERSON_POSITION, \
+                                                   SERVO_POSITION)
                     else:
                         PERSON_STATE = STATE_LIKELY
                 else:
-                    P_DETECT, p_pos = person_position_2_hit(HIT_ARRAY, \
+                    P_DETECT, PERSON_POSITION = \
+                              person_position_2_hit(HIT_ARRAY, \
                                                     SERVO_POSITION)
                     if (P_DETECT):
-                        SERVO_POSITION = move_head(p_pos, SERVO_POSITION)
+                        SERVO_POSITION = move_head(PERSON_POSITION, \
+                                                   SERVO_POSITION)
                         PROBABLE_PERSON += 1
                         if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH):
                             say_hello()
@@ -1134,14 +1258,17 @@ try:
                 if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
                     say_goodbye()
                     PERSON_STATE = STATE_NOTHING
-                elif (HIT_COUNT >= 1 and HIT_COUNT <= PERSON_HIT_COUNT ):
+                elif (HIT_COUNT >= 1 and \
+                      HIT_COUNT <= PERSON_HIT_COUNT ):
                     PERSON_STATE = STATE_POSSIBLE
 # hit count needs to be above PERSON_HIT_COUNT to validate a person
                 else:
-                    P_DETECT, p_pos = person_position_2_hit(HIT_ARRAY, \
-                                                SERVO_POSITION)
+                    P_DETECT, PERSON_POSITION = \
+                              person_position_2_hit(HIT_ARRAY, \
+                                                    SERVO_POSITION)
                     if (P_DETECT):
-                        SERVO_POSITION = move_head(p_pos, SERVO_POSITION)
+                        SERVO_POSITION = move_head(PERSON_POSITION, \
+                                                   SERVO_POSITION)
                     else:
                         PERSON_STATE = STATE_LIKELY
 
@@ -1160,7 +1287,8 @@ try:
             break
 
         if FATAL_ERROR:
-            LOGFILE_HANDLE.write('\r\nFatal error at '+str(datetime.now()))
+            LOGFILE_HANDLE.write('\r\nFatal error at '+ \
+                                 str(datetime.now()))
             break
 
 #############################
@@ -1168,16 +1296,16 @@ try:
 #############################
 
 except KeyboardInterrupt:
-    crash_msg = '\r\nKeyboard interrupt; quitting'
-    crash_and_burn(crash_msg, pygame, SERVO, LOGFILE_HANDLE)
+    CRASH_MSG = '\r\nKeyboard interrupt; quitting'
+    crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
 
 except IOError:
     # do not close the logfile here
     # allows the previous logfile to stay intact for a forensic analysis
-    crash_msg = '\r\nI/O Error; quitting'
-    debug_print(crash_msg)
-    if SERVO:
-        SERVO.stop_servo(SERVO_GPIO_PIN)
+    CRASH_MSG = '\r\nI/O Error; quitting'
+    debug_print(CRASH_MSG)
+    if SERVO_ENABLED:
+        SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
     pygame.quit()
     sys.exit()
 
