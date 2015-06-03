@@ -174,6 +174,9 @@ def person_position_1_hit(hit_array_1, s_position):
             else:
                 person_pos_1 = s_position + move_dist_1
 
+    debug_print('person_position_1: Pos: '+str(person_pos_1)+ \
+                ' Det: '+str(person_det_1))
+
     return (person_det_1, person_pos_1)
 
 def person_position_2_hit(hit_array_2, s_position):
@@ -229,6 +232,9 @@ def person_position_2_hit(hit_array_2, s_position):
                 person_pos_2 = s_position - move_dist_2
             else:
                 person_pos_2 = s_position + move_dist_2
+
+    debug_print('person_position_2: Pos: '+str(person_pos_2)+ \
+                ' Det: '+str(person_det_2))
 
     return (person_det_2, person_pos_2)
 
@@ -340,9 +346,7 @@ def say_hello():
 # update the screen
         pygame.display.update()
 
-    debug_print('**************************')
-    debug_print(' Hello Person! ')
-    debug_print('**************************')
+    debug_print('\r\n**************************\r\n     Hello Person!\r\n**************************')
 
 # Play "hello" sound effect
     debug_print('Playing hello audio')
@@ -364,9 +368,7 @@ def say_goodbye():
 # update the screen
         pygame.display.update()
 
-    debug_print('**************************')
-    debug_print(' Good Bye Person! ')
-    debug_print('**************************')
+    debug_print('\r\n**************************\r\n      Goodbye Person!\r\n**************************')
 
 # Play "bye bye" sound effect
     #byebye_message = random.choice(BYEBYE_FILE_NAME)
@@ -665,7 +667,7 @@ try:
 ################################
 
 # PID controller is the feedback loop controller for person following
-    pid_controller=PID(1.0,0.1,0.1)
+    pid_controller=PID(1.0,0.1,0.0)
 # seconds to allow temps to settle once the head has moved
     SETTLE_TIME = 1.0
 # minimum microseconds if PID error is less than this head will stop
@@ -761,10 +763,10 @@ try:
     while True:                 # The main loop
         loop_count += 1
         CPUtemp = getCPUtemperature()
-        debug_print('\r\n*************************** MAIN_WHILE_LOOP: '\
-                   +str(loop_count)+'\r\nPcount: '+str(p_detect_count)+\
-                   ' Max: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
-                   ' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp))
+        debug_print('\r\n^^^^^^^^^^^^^^^^^^^^\r\n    MAIN_WHILE_LOOP: '\
+                   +str(loop_count)+' Pcount: '+str(p_detect_count)+\
+                   ' Servo: '+str(servo_position)+' CPU: '+str(CPUtemp)+ \
+                   '\r\n^^^^^^^^^^^^^^^^^^^^')
 # Check for overtemp
         if (CPUtemp >= 105.0):
             if CPU_105_ON:
@@ -849,7 +851,7 @@ try:
          
 # Display each element's temperature in F
 #            debug_print('New temperature measurement')
-            print_temps(TEMPERATURE_ARRAY)
+#            print_temps(TEMPERATURE_ARRAY)
 
             if bytes_read != OMRON_BUFFER_LENGTH: # sensor problem
                 omron_error_count += 1
@@ -895,7 +897,8 @@ try:
             previous_hit_count = hit_count
 #            hit_array, hit_count = get_hit_array(TEMPERATURE_ARRAY)
             hit_count = 0
-
+            hit_array = [0,0,0,0]
+            hit_array_temp = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
             # go through each array element to find person "hits"
             # max hit count is 4 unless there is a burn hazard
             for element in range(0, OMRON_DATA_LIST):
@@ -923,9 +926,10 @@ try:
             hit_array[3] = hit_array_temp[0]+hit_array_temp[1]+ \
                          hit_array_temp[2]+hit_array_temp[3] 
 
-            debug_print('hit array: '+str(hit_array[0])+ \
-                        str(hit_array[1])+str(hit_array[2])+ \
-                        str(hit_array[3]))
+            debug_print('\r\n-----------------------\r\n   hit array: '+\
+                        str(hit_array[0])+str(hit_array[1])+ \
+                        str(hit_array[2])+str(hit_array[3])+ \
+                        '\r\n-----------------------')
 
 ###########################
 # Burn Hazard Detected !
