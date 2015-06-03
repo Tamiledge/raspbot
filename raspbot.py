@@ -27,9 +27,9 @@ import getopt
 import pigpio
 import time
 from datetime import datetime
-from webcolors import *
+from webcolors import name_to_rgb
 import pygame
-from pygame.locals import *
+from pygame.locals import Rect, QUIT, KEYDOWN, K_q, K_ESCAPE
 import random
 from omron_src import omron_init     # contains omron functions
 from omron_src import omron_read     # contains omron functions
@@ -449,6 +449,7 @@ HIT_WEIGHT_PERCENT = 0.1
 PERSON_TEMP_SUM_THRESHOLD = 3
 DETECT_COUNT_THRESH = 3
 PERSON_HIT_COUNT = 4
+PROBABLE_PERSON_THRESH = 5  # used to determine when to say hello
 
 # Strange things happen: Some servos move CW and others move CCW for the
 # same number. # it is possible that the "front" of the servo might be
@@ -754,10 +755,12 @@ try:
     STATE_LIKELY = 2
     STATE_PROBABLE = 3
     STATE_DETECTED = 4
+    STATE_BURN = 5
     personState = STATE_NOTHING
     prevPersonState = STATE_NOTHING
     POSSIBLE_PERSON_MAX = 10 # after 10 one-hits, move head
     possible_person = 0
+    probable_person = 0
 
 #############################
 # Main while loop
@@ -804,8 +807,6 @@ try:
             debug_print('person temp threshold = ' \
                        +str(PERSON_TEMP_THRESHOLD))
 # Display the Omron internal temperature
-            debug_print('Omron D6T internal temp = ' \
-                       +"%.1f"%room_temp+' F')
             debug_print('Servo Type: '+str(SERVO_TYPE))
 
 # start roaming again            
@@ -935,13 +936,19 @@ try:
                         '\r\nhit count: '+str(hit_count)+ \
                         '\r\n-----------------------')
 
+            if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
+                personState = STATE_BURN
+
 ###########################
 # Burn Hazard Detected !
 ###########################
-            if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
+            if (personState == STATE_BURN):
+                debug_print('STATE: BURN: Burn Hazard cnt: ' \
+                           +str(burn_hazard)+' ROAM_COUNT = ' \
+                           +str(roam_count))
                 roam_count = 0
                 possible_person = 0
-                burn_hazard = 1
+                burn_hazard += 1
                 LED_state = True
                 GPIO.output(LED_GPIO_PIN, LED_state)
                 if MONITOR:
@@ -954,20 +961,29 @@ try:
 # update the screen
                     pygame.display.update()
 
-                play_sound(MAX_VOLUME, BURN_FILE_NAME)
-                debug_print('Played Burn warning audio')
-                if CONNECTED:
-                    try:
-                        speakSpeechFromText("The temperature is "+ \
-                            "%.1f"%max(TEMPERATURE_ARRAY)+ \
-                            " degrees fahrenheit", "mtemp.mp3")
-                        play_sound(MAX_VOLUME, "mtemp.mp3")
-                    except:
-                        continue
                 debug_print('\r\n'+"Burn hazard temperature is " \
                            +"%.1f"%max(TEMPERATURE_ARRAY)+" degrees")
                 
-                break
+                # play this only once, otherwise, its too annoying
+                if (burn_hazard == 1):
+                    play_sound(MAX_VOLUME, BURN_FILE_NAME)
+                    debug_print('Played Burn warning audio')
+
+# Drop back to looking for a person
+                if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
+                    personState = STATE_BURN
+                else:
+# Drop back to looking for a person
+                    personState = STATE_NOTHING
+
+##                if CONNECTED:
+##                    try:
+##                        speakSpeechFromText("The temperature is "+ \
+##                            "%.1f"%max(TEMPERATURE_ARRAY)+ \
+##                            " degrees fahrenheit", "mtemp.mp3")
+##                        play_sound(MAX_VOLUME, "mtemp.mp3")
+##                    except:
+##                        continue
 
 ###########################
 # No Person Detected
@@ -983,6 +999,7 @@ try:
                 no_person_count += 1
                 p_detect_count = 0
                 possible_person = 0
+                probable_person = 0
                 person = 0
                 burn_hazard = 0
                 if MONITOR:
@@ -1013,6 +1030,7 @@ try:
 #     Event 2: More than one hit - state 2
 #
             elif (personState == STATE_POSSIBLE):
+                burn_hazard = 0
                 debug_print('STATE: POSSIBLE: No Person cnt: ' \
                            +str(no_person_count))
                 no_person_count += 1
@@ -1046,6 +1064,7 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
             elif (personState == STATE_LIKELY):
+                burn_hazard = 0
                 debug_print('STATE: LIKELY: No Person cnt: ' \
                             +str(no_person_count))
                 possible_person = 0
@@ -1074,6 +1093,7 @@ try:
 #     Event 2: more than one sensor has a hit, move head, say hello
 #
             elif (personState == STATE_PROBABLE):
+                burn_hazard = 0
                 possible_person = 0
                 debug_print('STATE: PROBABLE: No Person cnt: ' \
                             +str(no_person_count))
@@ -1092,8 +1112,13 @@ try:
                                                     servo_position)
                     if (p_detect):
                         servo_position = move_head(p_pos, servo_position)
-                        say_hello()
-                        personState = STATE_DETECTED
+                        probable_person += 1
+                        if (probable_person > PROBABLE_PERSON_THRESH):
+                            say_hello()
+                            personState = STATE_DETECTED
+                            probable_person = 0
+                        else:
+                            personState = STATE_PROBABLE
                     else:
                         personState = STATE_LIKELY
 
@@ -1108,6 +1133,7 @@ try:
 #     Event 2: more than one sensor, move head to position, stay
 #     
             elif (personState == STATE_DETECTED):
+                burn_hazard = 0
                 debug_print('STATE: DETECTED: No Person cnt: ' \
                            +str(no_person_count))
                 roam_count = 0
