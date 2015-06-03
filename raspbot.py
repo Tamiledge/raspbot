@@ -428,7 +428,7 @@ LOG_MAX = 1200
 RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100  # temperature at which a warning is given
 TEMPMARGIN = 5          # degrees > than room temp to detect person
-PERSON_TEMP_THRESHOLD = 81      # degrees fahrenheit
+PERSON_TEMP_THRESHOLD = 79      # degrees fahrenheit
 MONITOR = 1             # assume a monitor is attached
 # Servo positions
 # Weirdness factor: Some servo's I used go in the reverse direction
