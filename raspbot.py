@@ -328,6 +328,8 @@ def servo_roam(roam_cnt, servo_pos, servo_dir):
 # center the servo when roam max is hit
         servo_pos = \
             set_servo_to_position(CTR_SERVO_POSITION)
+        if SERVO_ENABLED:
+            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
 
 # Start roaming again if no action
         if roam_cnt >= ROAM_MAX*2:
@@ -482,7 +484,7 @@ HIT_WEIGHT_PERCENT = 0.1
 PERSON_TEMP_SUM_THRESHOLD = 3
 DETECT_COUNT_THRESH = 3
 PERSON_HIT_COUNT = 4
-PROBABLE_PERSON_THRESH = 3  # used to determine when to say hello
+PROBABLE_PERSON_THRESH = 4  # used to determine when to say hello
 
 # Strange things happen: Some servos move CW and others move CCW for the
 # same number. # it is possible that the "front" of the servo might be
