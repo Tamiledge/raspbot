@@ -400,11 +400,13 @@ def play_sound(volume, message):
     """
     Play an mp3 file
     """
-    pygame.mixer.music.set_volume(volume)         
+# commented next line thinking that it might be causing the garbling
+    # pygame.mixer.music.set_volume(volume)         
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy() == True:
-        continue
+# commented next line thinking that it might be causing the garbling
+#    while pygame.mixer.music.get_busy() == True:
+#        continue
 
 def crash_and_burn(msg, py_game, servo_in, log_file):
     """
@@ -430,6 +432,42 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     log_file.write(msg+' @ '+str(datetime.now()))
     log_file.close
     sys.exit()
+
+def panic():
+    debug_print('Panic!')
+    GPIO.output(LED0_GRN, LED_OFF)
+    GPIO.output(LED1_GRN, LED_OFF)
+    GPIO.output(LED2_GRN, LED_OFF)
+    GPIO.output(LED3_GRN, LED_OFF)
+    GPIO.output(LED0_YEL, LED_OFF)
+    GPIO.output(LED1_YEL, LED_OFF)
+    GPIO.output(LED2_YEL, LED_OFF)
+    GPIO.output(LED3_YEL, LED_OFF)
+    if SERVO_ENABLED:
+        SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
+    while True:
+        GPIO.output(LED0_RED, LED_ON)
+        GPIO.output(LED1_RED, LED_ON)
+        GPIO.output(LED2_RED, LED_ON)
+        GPIO.output(LED3_RED, LED_ON)
+        time.sleep(0.3)
+        GPIO.output(LED0_RED, LED_OFF)
+        GPIO.output(LED1_RED, LED_OFF)
+        GPIO.output(LED2_RED, LED_OFF)
+        GPIO.output(LED3_RED, LED_OFF)
+        time.sleep(0.3)
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                CRASH_MSG = '\r\npygame event QUIT'
+                crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, \
+                               LOGFILE_HANDLE)
+            if event.type == KEYDOWN:
+                if event.key == K_q or event.key == K_ESCAPE:
+                    CRASH_MSG = \
+                    '\r\npygame event: keyboard q or esc pressed'
+                    crash_and_burn(CRASH_MSG, pygame, \
+                                   SERVO_HANDLE, LOGFILE_HANDLE)
+
 
 # Constants
 RASPI_I2C_CHANNEL = 1       # the /dev/i2c device
@@ -552,7 +590,6 @@ TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST
 LED_STATE = True
 # keep track of head roams so that we can turn it off
 ROAM_COUNT = 0
-FATAL_ERROR = 0
 # QUADRANT of the display (x, y, width, height)
 QUADRANT = [Rect]*OMRON_DATA_LIST
 CENTER = [(0, 0)]*OMRON_DATA_LIST      # center of each QUADRANT
@@ -635,10 +672,7 @@ try:
         omron_init(RASPI_I2C_CHANNEL, OMRON_1, PIGPIO_HANDLE, I2C_BUS)
 
     if OMRON1_HANDLE < 1:
-        if SERVO_ENABLED:
-            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
-        pygame.quit()
-        sys.exit()
+        panic()
 
 # Open log file
 
@@ -864,235 +898,232 @@ try:
             P_DETECT_COUNT  = 0
             ROAM_COUNT = 0
 
-#############################
-# Inner while loop
-#############################
-        while True: # do this loop until a person shows up
-         
-            if (LED_STATE == False):
-                LED_STATE = True
+        if (LED_STATE == False):
+            LED_STATE = True
 #                debug_print('Turning LED on')
-                GPIO.output(LED_GPIO_PIN, LED_STATE)
-            else:
-                LED_STATE = False
+            GPIO.output(LED_GPIO_PIN, LED_STATE)
+        else:
+            LED_STATE = False
 #                debug_print('Turning LED off')
-                GPIO.output(LED_GPIO_PIN, LED_STATE)
-                
-            time.sleep(MEASUREMENT_WAIT_PERIOD)
+            GPIO.output(LED_GPIO_PIN, LED_STATE)
+            
+        time.sleep(MEASUREMENT_WAIT_PERIOD)
 
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    CRASH_MSG = '\r\npygame event QUIT'
-                    crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, \
-                                   LOGFILE_HANDLE)
-                if event.type == KEYDOWN:
-                    if event.key == K_q or event.key == K_ESCAPE:
-                        CRASH_MSG = \
-                        '\r\npygame event: keyboard q or esc pressed'
-                        crash_and_burn(CRASH_MSG, pygame, \
-                                       SERVO_HANDLE, LOGFILE_HANDLE)
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                CRASH_MSG = '\r\npygame event QUIT'
+                crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, \
+                               LOGFILE_HANDLE)
+            if event.type == KEYDOWN:
+                if event.key == K_q or event.key == K_ESCAPE:
+                    CRASH_MSG = \
+                    '\r\npygame event: keyboard q or esc pressed'
+                    crash_and_burn(CRASH_MSG, pygame, \
+                                   SERVO_HANDLE, LOGFILE_HANDLE)
 
 # read the raw temperature data
 # 
-            (BYTES_READ, TEMPERATURE_ARRAY, ROOM_TEMP) = \
-                omron_read(OMRON1_HANDLE, DEGREE_UNIT, \
-                OMRON_BUFFER_LENGTH, PIGPIO_HANDLE)
-            OMRON_READ_COUNT += 1
-         
+        (BYTES_READ, TEMPERATURE_ARRAY, ROOM_TEMP) = \
+            omron_read(OMRON1_HANDLE, DEGREE_UNIT, \
+            OMRON_BUFFER_LENGTH, PIGPIO_HANDLE)
+        OMRON_READ_COUNT += 1
+     
 # Display each element's temperature in F
 #            debug_print('New temperature measurement')
 #            print_temps(TEMPERATURE_ARRAY)
 
-            if BYTES_READ != OMRON_BUFFER_LENGTH: # sensor problem
-                OMRON_ERROR_COUNT += 1
-                debug_print( \
-                    'ERROR: Omron thermal sensor failure! Bytes read: '\
-                    +str(BYTES_READ))
-                FATAL_ERROR = 1
-                break
+        if BYTES_READ != OMRON_BUFFER_LENGTH: # sensor problem
+            OMRON_ERROR_COUNT += 1
+            debug_print( \
+                'ERROR: Omron thermal sensor failure! Bytes read: '\
+                +str(BYTES_READ))
+            panic()
 
-            if MONITOR:
+        if MONITOR:
 # create the IR pixels
-                for i in range(0, OMRON_DATA_LIST):
+            for i in range(0, OMRON_DATA_LIST):
 # This fills each array square with a color that matches the temp
-                    SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
-                                MIN_TEMP, TEMPERATURE_ARRAY[i]), \
-                                QUADRANT[i])
-# Display temp value
-                    if TEMPERATURE_ARRAY[i] > PERSON_TEMP_THRESHOLD:
-                        SCREEN_TEXT = \
-                            FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
-                                        1, name_to_rgb('red'))
-                    else:
-                        SCREEN_TEXT = \
-                            FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
-                                        1, name_to_rgb('navy'))
-                    SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
-                    SCREEN_TEXT_POS.center = CENTER[i]
-                    SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
-
-# Create an area to display the room temp and messages
                 SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
-                                    MIN_TEMP, ROOM_TEMP), \
-                                    ROOM_TEMP_AREA)
-                SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP, 1, \
-                                    name_to_rgb('navy'))
+                            MIN_TEMP, TEMPERATURE_ARRAY[i]), \
+                            QUADRANT[i])
+# Display temp value
+                if TEMPERATURE_ARRAY[i] > PERSON_TEMP_THRESHOLD:
+                    SCREEN_TEXT = \
+                        FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
+                                    1, name_to_rgb('red'))
+                else:
+                    SCREEN_TEXT = \
+                        FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
+                                    1, name_to_rgb('navy'))
                 SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
-                SCREEN_TEXT_POS.center = ROOM_TEMP_MSG_XY
+                SCREEN_TEXT_POS.center = CENTER[i]
                 SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
 
-# update the screen
-                pygame.display.update()
+# Create an area to display the room temp and messages
+            SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
+                                MIN_TEMP, ROOM_TEMP), \
+                                ROOM_TEMP_AREA)
+            SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP, 1, \
+                                name_to_rgb('navy'))
+            SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+            SCREEN_TEXT_POS.center = ROOM_TEMP_MSG_XY
+            SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
 
+# update the screen
+            pygame.display.update()
+
+# testing panic
+#        panic()
+        
 ###########################
 # Analyze sensor data
 ###########################
 
-            PREVIOUS_HIT_COUNT = HIT_COUNT
-            HIT_COUNT = 0
-            HIT_ARRAY = [0, 0, 0, 0]
-            HIT_ARRAY_TEMP = \
-                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-            # go through each array element to find person "hits"
-            # max hit count is 4 unless there is a burn hazard
-            for element in range(0, OMRON_DATA_LIST):
-                if (TEMPERATURE_ARRAY[element] > \
-                    BURN_HAZARD_TEMP):
-                    HIT_ARRAY_TEMP[element] = BURN_HAZARD_HIT
-                    HIT_COUNT += 1
-                    
-                elif (TEMPERATURE_ARRAY[element] > \
-                      PERSON_TEMP_THRESHOLD):
-                    HIT_ARRAY_TEMP[element] += 1
-                    HIT_COUNT += 1
-
-                else:
-                    HIT_ARRAY_TEMP[element] = 0
-                    
-            # far left column
-            HIT_ARRAY[0] = HIT_ARRAY_TEMP[12]+HIT_ARRAY_TEMP[13]+ \
-                         HIT_ARRAY_TEMP[14]+HIT_ARRAY_TEMP[15]
-            HIT_ARRAY[1] = HIT_ARRAY_TEMP[8]+HIT_ARRAY_TEMP[9]+ \
-                         HIT_ARRAY_TEMP[10]+HIT_ARRAY_TEMP[11] 
-            HIT_ARRAY[2] = HIT_ARRAY_TEMP[4]+HIT_ARRAY_TEMP[5]+ \
-                         HIT_ARRAY_TEMP[6]+HIT_ARRAY_TEMP[7] 
-            # far right column
-            HIT_ARRAY[3] = HIT_ARRAY_TEMP[0]+HIT_ARRAY_TEMP[1]+ \
-                         HIT_ARRAY_TEMP[2]+HIT_ARRAY_TEMP[3] 
-
-            GPIO.output(LED0_RED, LED_OFF)
-            GPIO.output(LED0_YEL, LED_OFF)
-            GPIO.output(LED0_GRN, LED_OFF)
-            if (HIT_ARRAY[0] == 1):
-                GPIO.output(LED0_YEL, LED_ON)
-            elif (HIT_ARRAY[0] >= 2 and HIT_ARRAY[0] <= 4):
-                GPIO.output(LED0_GRN, LED_ON)
-            elif (HIT_ARRAY[0] > 4):
-                GPIO.output(LED0_RED, LED_ON)
+        PREVIOUS_HIT_COUNT = HIT_COUNT
+        HIT_COUNT = 0
+        HIT_ARRAY = [0, 0, 0, 0]
+        HIT_ARRAY_TEMP = \
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        # go through each array element to find person "hits"
+        # max hit count is 4 unless there is a burn hazard
+        for element in range(0, OMRON_DATA_LIST):
+            if (TEMPERATURE_ARRAY[element] > \
+                BURN_HAZARD_TEMP):
+                HIT_ARRAY_TEMP[element] = BURN_HAZARD_HIT
+                HIT_COUNT += 1
                 
-            GPIO.output(LED1_RED, LED_OFF)
-            GPIO.output(LED1_YEL, LED_OFF)
-            GPIO.output(LED1_GRN, LED_OFF)
-            if (HIT_ARRAY[1] == 1):
-                GPIO.output(LED1_YEL, LED_ON)
-            elif (HIT_ARRAY[1] >= 2 and HIT_ARRAY[1] <= 4):
-                GPIO.output(LED1_GRN, LED_ON)
-            elif (HIT_ARRAY[1] > 4):
-                GPIO.output(LED1_RED, LED_ON)
-                
-            GPIO.output(LED2_RED, LED_OFF)
-            GPIO.output(LED2_YEL, LED_OFF)
-            GPIO.output(LED2_GRN, LED_OFF)
-            if (HIT_ARRAY[2] == 1):
-                GPIO.output(LED2_YEL, LED_ON)
-            elif (HIT_ARRAY[2] >= 2 and HIT_ARRAY[2] <= 4):
-                GPIO.output(LED2_GRN, LED_ON)
-            elif (HIT_ARRAY[2] > 4):
-                GPIO.output(LED2_RED, LED_ON)
-                
-            GPIO.output(LED3_RED, LED_OFF)
-            GPIO.output(LED3_YEL, LED_OFF)
-            GPIO.output(LED3_GRN, LED_OFF)
-            if (HIT_ARRAY[3] == 1):
-                GPIO.output(LED3_YEL, LED_ON)
-            elif (HIT_ARRAY[3] >= 2 and HIT_ARRAY[3] <= 4):
-                GPIO.output(LED3_GRN, LED_ON)
-            elif (HIT_ARRAY[3] > 4):
-                GPIO.output(LED3_RED, LED_ON)
-                                 
-            debug_print('\r\n-----------------------\r\nhit array: '+\
-                        str(HIT_ARRAY[0])+str(HIT_ARRAY[1])+ \
-                        str(HIT_ARRAY[2])+str(HIT_ARRAY[3])+ \
-                        '\r\nhit count: '+str(HIT_COUNT)+ \
-                        '\r\n-----------------------')
+            elif (TEMPERATURE_ARRAY[element] > \
+                  PERSON_TEMP_THRESHOLD):
+                HIT_ARRAY_TEMP[element] += 1
+                HIT_COUNT += 1
 
-            if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
-                PERSON_STATE = STATE_BURN
+            else:
+                HIT_ARRAY_TEMP[element] = 0
+                
+        # far left column
+        HIT_ARRAY[0] = HIT_ARRAY_TEMP[12]+HIT_ARRAY_TEMP[13]+ \
+                     HIT_ARRAY_TEMP[14]+HIT_ARRAY_TEMP[15]
+        HIT_ARRAY[1] = HIT_ARRAY_TEMP[8]+HIT_ARRAY_TEMP[9]+ \
+                     HIT_ARRAY_TEMP[10]+HIT_ARRAY_TEMP[11] 
+        HIT_ARRAY[2] = HIT_ARRAY_TEMP[4]+HIT_ARRAY_TEMP[5]+ \
+                     HIT_ARRAY_TEMP[6]+HIT_ARRAY_TEMP[7] 
+        # far right column
+        HIT_ARRAY[3] = HIT_ARRAY_TEMP[0]+HIT_ARRAY_TEMP[1]+ \
+                     HIT_ARRAY_TEMP[2]+HIT_ARRAY_TEMP[3] 
+
+        GPIO.output(LED0_RED, LED_OFF)
+        GPIO.output(LED0_YEL, LED_OFF)
+        GPIO.output(LED0_GRN, LED_OFF)
+        if (HIT_ARRAY[0] == 1):
+            GPIO.output(LED0_YEL, LED_ON)
+        elif (HIT_ARRAY[0] >= 2 and HIT_ARRAY[0] <= 4):
+            GPIO.output(LED0_GRN, LED_ON)
+        elif (HIT_ARRAY[0] > 4):
+            GPIO.output(LED0_RED, LED_ON)
+            
+        GPIO.output(LED1_RED, LED_OFF)
+        GPIO.output(LED1_YEL, LED_OFF)
+        GPIO.output(LED1_GRN, LED_OFF)
+        if (HIT_ARRAY[1] == 1):
+            GPIO.output(LED1_YEL, LED_ON)
+        elif (HIT_ARRAY[1] >= 2 and HIT_ARRAY[1] <= 4):
+            GPIO.output(LED1_GRN, LED_ON)
+        elif (HIT_ARRAY[1] > 4):
+            GPIO.output(LED1_RED, LED_ON)
+            
+        GPIO.output(LED2_RED, LED_OFF)
+        GPIO.output(LED2_YEL, LED_OFF)
+        GPIO.output(LED2_GRN, LED_OFF)
+        if (HIT_ARRAY[2] == 1):
+            GPIO.output(LED2_YEL, LED_ON)
+        elif (HIT_ARRAY[2] >= 2 and HIT_ARRAY[2] <= 4):
+            GPIO.output(LED2_GRN, LED_ON)
+        elif (HIT_ARRAY[2] > 4):
+            GPIO.output(LED2_RED, LED_ON)
+            
+        GPIO.output(LED3_RED, LED_OFF)
+        GPIO.output(LED3_YEL, LED_OFF)
+        GPIO.output(LED3_GRN, LED_OFF)
+        if (HIT_ARRAY[3] == 1):
+            GPIO.output(LED3_YEL, LED_ON)
+        elif (HIT_ARRAY[3] >= 2 and HIT_ARRAY[3] <= 4):
+            GPIO.output(LED3_GRN, LED_ON)
+        elif (HIT_ARRAY[3] > 4):
+            GPIO.output(LED3_RED, LED_ON)
+                             
+        debug_print('\r\n-----------------------\r\nhit array: '+\
+                    str(HIT_ARRAY[0])+str(HIT_ARRAY[1])+ \
+                    str(HIT_ARRAY[2])+str(HIT_ARRAY[3])+ \
+                    '\r\nhit count: '+str(HIT_COUNT)+ \
+                    '\r\n-----------------------')
+
+        if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
+            PERSON_STATE = STATE_BURN
 
 ###########################
 # Burn Hazard Detected !
 ###########################
-            if (PERSON_STATE == STATE_BURN):
-                debug_print('STATE: BURN: Burn Hazard cnt: ' \
-                           +str(BURN_HAZARD_CNT)+' ROAM_COUNT = ' \
-                           +str(ROAM_COUNT))
-                ROAM_COUNT = 0
-                POSSIBLE_PERSON = 0
-                BURN_HAZARD_CNT += 1
-                LED_STATE = True
-                GPIO.output(LED_GPIO_PIN, LED_STATE)
-                if MONITOR:
-                    SCREEN_DISPLAY.fill(name_to_rgb('red'), \
-                                        MESSAGE_AREA)
-                    SCREEN_TEXT = FONT.render("WARNING! Burn danger!", \
-                                              1, name_to_rgb('yellow'))
-                    SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
-                    SCREEN_TEXT_POS.center = MESSAGE_AREA_XY
-                    SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
+        if (PERSON_STATE == STATE_BURN):
+            debug_print('STATE: BURN: Burn Hazard cnt: ' \
+                       +str(BURN_HAZARD_CNT)+' ROAM_COUNT = ' \
+                       +str(ROAM_COUNT))
+            ROAM_COUNT = 0
+            POSSIBLE_PERSON = 0
+            BURN_HAZARD_CNT += 1
+            LED_STATE = True
+            GPIO.output(LED_GPIO_PIN, LED_STATE)
+            if MONITOR:
+                SCREEN_DISPLAY.fill(name_to_rgb('red'), \
+                                    MESSAGE_AREA)
+                SCREEN_TEXT = FONT.render("WARNING! Burn danger!", \
+                                          1, name_to_rgb('yellow'))
+                SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+                SCREEN_TEXT_POS.center = MESSAGE_AREA_XY
+                SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
 # update the screen
-                    pygame.display.update()
+                pygame.display.update()
 
-                debug_print('\r\n'+"Burn hazard temperature is " \
-                           +"%.1f"%max(TEMPERATURE_ARRAY)+" degrees")
-                
-                # play this only once, otherwise, its too annoying
-                if (BURN_HAZARD_CNT == 1):
-                    play_sound(MAX_VOLUME, BURN_FILE_NAME)
-                    debug_print('Played Burn warning audio')
+            debug_print('\r\n'+"Burn hazard temperature is " \
+                       +"%.1f"%max(TEMPERATURE_ARRAY)+" degrees")
+            
+            # play this only once, otherwise, its too annoying
+            if (BURN_HAZARD_CNT == 1):
+                play_sound(MAX_VOLUME, BURN_FILE_NAME)
+                debug_print('Played Burn warning audio')
 
-                MOVE_DIST = 0
-                MOVE_CW = True
-                HAZARD_POSITION = 0
-                
-                if (HIT_ARRAY[0] > BURN_HAZARD_HIT and \
-                    HIT_ARRAY[1] < BURN_HAZARD_HIT and \
-                    HIT_ARRAY[2] < BURN_HAZARD_HIT and \
-                    HIT_ARRAY[3] < BURN_HAZARD_HIT):
-                        MOVE_DIST = MOVE_DIST_SHORT
-                        MOVE_CW = True
+            MOVE_DIST = 0
+            MOVE_CW = True
+            HAZARD_POSITION = 0
+            
+            if (HIT_ARRAY[0] > BURN_HAZARD_HIT and \
+                HIT_ARRAY[1] < BURN_HAZARD_HIT and \
+                HIT_ARRAY[2] < BURN_HAZARD_HIT and \
+                HIT_ARRAY[3] < BURN_HAZARD_HIT):
+                    MOVE_DIST = MOVE_DIST_SHORT
+                    MOVE_CW = True
 
-                elif (HIT_ARRAY[0] < BURN_HAZARD_HIT and \
-                      HIT_ARRAY[1] < BURN_HAZARD_HIT and \
-                      HIT_ARRAY[2] < BURN_HAZARD_HIT and \
-                      HIT_ARRAY[3] > BURN_HAZARD_HIT):
-                          MOVE_DIST = MOVE_DIST_SHORT
-                          MOVE_CW = False
+            elif (HIT_ARRAY[0] < BURN_HAZARD_HIT and \
+                  HIT_ARRAY[1] < BURN_HAZARD_HIT and \
+                  HIT_ARRAY[2] < BURN_HAZARD_HIT and \
+                  HIT_ARRAY[3] > BURN_HAZARD_HIT):
+                      MOVE_DIST = MOVE_DIST_SHORT
+                      MOVE_CW = False
 
-                if (MOVE_DIST > 0):
-                    HAZARD_POSITION = \
-                        resolve_new_position(MOVE_CW, \
-                                             SERVO_POSITION, \
-                                             MOVE_DIST)
-                    debug_print('hazard_position: Pos: '+ \
-                                str(HAZARD_POSITION))
-                    SERVO_POSITION = move_head(HAZARD_POSITION, \
-                                               SERVO_POSITION)
+            if (MOVE_DIST > 0):
+                HAZARD_POSITION = \
+                    resolve_new_position(MOVE_CW, \
+                                         SERVO_POSITION, \
+                                         MOVE_DIST)
+                debug_print('hazard_position: Pos: '+ \
+                            str(HAZARD_POSITION))
+                SERVO_POSITION = move_head(HAZARD_POSITION, \
+                                           SERVO_POSITION)
 
-                if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
-                    PERSON_STATE = STATE_BURN
-                else:
+            if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
+                PERSON_STATE = STATE_BURN
+            else:
 # Drop back to looking for a person
-                    PERSON_STATE = STATE_NOTHING
+                PERSON_STATE = STATE_NOTHING
 
 ##                if CONNECTED:
 ##                    try:
@@ -1110,35 +1141,35 @@ try:
 #     Event 0: No change - outcome: continue waiting for a person
 #     Event 1: One or more sensors cross the person threshold
 #
-            elif (PERSON_STATE == STATE_NOTHING):
-                debug_print('STATE: NOTHING: No Person cnt: ' \
-                           +str(NO_PERSON_COUNT)+' ROAM_COUNT = ' \
-                           +str(ROAM_COUNT))
-                NO_PERSON_COUNT += 1
-                P_DETECT_COUNT = 0
-                POSSIBLE_PERSON = 0
-                PROBABLE_PERSON = 0
-                BURN_HAZARD_CNT = 0
-                if MONITOR:
-                    SCREEN_DISPLAY.fill(name_to_rgb('white'), \
-                                        MESSAGE_AREA)
-                    SCREEN_TEXT = FONT.render("Waiting...", 1, \
-                                       name_to_rgb('blue'))
-                    SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
-                    SCREEN_TEXT_POS.center = MESSAGE_AREA_XY
-                    SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
-    # update the screen
-                    pygame.display.update()
-                if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                    PERSON_STATE = STATE_NOTHING
-                else:
-                    PERSON_STATE = STATE_POSSIBLE
+        elif (PERSON_STATE == STATE_NOTHING):
+            debug_print('STATE: NOTHING: No Person cnt: ' \
+                       +str(NO_PERSON_COUNT)+' ROAM_COUNT = ' \
+                       +str(ROAM_COUNT))
+            NO_PERSON_COUNT += 1
+            P_DETECT_COUNT = 0
+            POSSIBLE_PERSON = 0
+            PROBABLE_PERSON = 0
+            BURN_HAZARD_CNT = 0
+            if MONITOR:
+                SCREEN_DISPLAY.fill(name_to_rgb('white'), \
+                                    MESSAGE_AREA)
+                SCREEN_TEXT = FONT.render("Waiting...", 1, \
+                                   name_to_rgb('blue'))
+                SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+                SCREEN_TEXT_POS.center = MESSAGE_AREA_XY
+                SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
+# update the screen
+                pygame.display.update()
+            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
+                PERSON_STATE = STATE_NOTHING
+            else:
+                PERSON_STATE = STATE_POSSIBLE
 
-                (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
-                servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
+            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
+            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
+            
+            PREV_PERSON_STATE = STATE_NOTHING
                 
-                PREV_PERSON_STATE = STATE_NOTHING
-                    
 ###########################
 # Possible Person Detected
 ###########################
@@ -1147,34 +1178,34 @@ try:
 #     Event 1: One hit - move head to try to center on the hit
 #     Event 2: More than one hit - state 2
 #
-            elif (PERSON_STATE == STATE_POSSIBLE):
-                BURN_HAZARD_CNT = 0
-                debug_print('STATE: POSSIBLE: Possible Person cnt: ' \
-                           +str(POSSIBLE_PERSON))
-                NO_PERSON_COUNT += 1
-                if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                    PERSON_STATE = STATE_NOTHING
-                elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
-                    P_DETECT, PERSON_POSITION = \
-                        person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
-                    # stay in possible state
-                    if (P_DETECT):
-                        POSSIBLE_PERSON += 1
-                        if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
-                            POSSIBLE_PERSON = 0
-                            SERVO_POSITION = \
-                                move_head(PERSON_POSITION, \
-                                          SERVO_POSITION)
-                    else:
-                        PERSON_STATE = STATE_NOTHING
+        elif (PERSON_STATE == STATE_POSSIBLE):
+            BURN_HAZARD_CNT = 0
+            debug_print('STATE: POSSIBLE: Possible Person cnt: ' \
+                       +str(POSSIBLE_PERSON))
+            NO_PERSON_COUNT += 1
+            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
+                PERSON_STATE = STATE_NOTHING
+            elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
+                P_DETECT, PERSON_POSITION = \
+                    person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
+                # stay in possible state
+                if (P_DETECT):
+                    POSSIBLE_PERSON += 1
+                    if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
+                        POSSIBLE_PERSON = 0
+                        SERVO_POSITION = \
+                            move_head(PERSON_POSITION, \
+                                      SERVO_POSITION)
                 else:
-                    PERSON_STATE = STATE_LIKELY
+                    PERSON_STATE = STATE_NOTHING
+            else:
+                PERSON_STATE = STATE_LIKELY
 
-                (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
-                servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
-                
-                PREV_PERSON_STATE = STATE_POSSIBLE
-                
+            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
+            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
+            
+            PREV_PERSON_STATE = STATE_POSSIBLE
+            
 ###########################
 # Likely Person Detected
 ###########################
@@ -1183,28 +1214,28 @@ try:
 #     Event 1: One hit - noise, no change
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
-            elif (PERSON_STATE == STATE_LIKELY):
-                BURN_HAZARD_CNT = 0
-                debug_print('STATE: LIKELY: No Person cnt: ' \
-                            +str(NO_PERSON_COUNT))
-                POSSIBLE_PERSON = 0
-                NO_PERSON_COUNT += 1
-                if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                    PERSON_STATE = STATE_NOTHING
+        elif (PERSON_STATE == STATE_LIKELY):
+            BURN_HAZARD_CNT = 0
+            debug_print('STATE: LIKELY: No Person cnt: ' \
+                        +str(NO_PERSON_COUNT))
+            POSSIBLE_PERSON = 0
+            NO_PERSON_COUNT += 1
+            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
+                PERSON_STATE = STATE_NOTHING
+            else:
+                P_DETECT, PERSON_POSITION = \
+                          person_position_2_hit(HIT_ARRAY, \
+                                                SERVO_POSITION)
+                if (not P_DETECT):
+                    PERSON_STATE = STATE_POSSIBLE
                 else:
-                    P_DETECT, PERSON_POSITION = \
-                              person_position_2_hit(HIT_ARRAY, \
-                                                    SERVO_POSITION)
-                    if (not P_DETECT):
-                        PERSON_STATE = STATE_POSSIBLE
-                    else:
-                        SERVO_POSITION = move_head(PERSON_POSITION, \
-                                                   SERVO_POSITION)
-                        
-                    if (HIT_COUNT > PERSON_HIT_COUNT):
-                        PERSON_STATE = STATE_PROBABLE
-                
-                PREV_PERSON_STATE = STATE_LIKELY
+                    SERVO_POSITION = move_head(PERSON_POSITION, \
+                                               SERVO_POSITION)
+                    
+                if (HIT_COUNT > PERSON_HIT_COUNT):
+                    PERSON_STATE = STATE_PROBABLE
+            
+            PREV_PERSON_STATE = STATE_LIKELY
 
 ###########################
 # Probable Person Detected
@@ -1214,40 +1245,40 @@ try:
 #     Event 1: One hit - noise, move to state 2
 #     Event 2: more than one sensor has a hit, move head, say hello
 #
-            elif (PERSON_STATE == STATE_PROBABLE):
-                BURN_HAZARD_CNT = 0
-                POSSIBLE_PERSON = 0
-                debug_print('STATE: PROBABLE: Probable Person cnt: ' \
-                            +str(PROBABLE_PERSON))
-                if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                    PERSON_STATE = STATE_LIKELY
-                elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
-                    P_DETECT, PERSON_POSITION = \
-                        person_position_1_hit(HIT_ARRAY, \
-                                              SERVO_POSITION)
-                    if (P_DETECT):
-                        SERVO_POSITION = move_head(PERSON_POSITION, \
-                                                   SERVO_POSITION)
-                    else:
-                        PERSON_STATE = STATE_LIKELY
+        elif (PERSON_STATE == STATE_PROBABLE):
+            BURN_HAZARD_CNT = 0
+            POSSIBLE_PERSON = 0
+            debug_print('STATE: PROBABLE: Probable Person cnt: ' \
+                        +str(PROBABLE_PERSON))
+            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
+                PERSON_STATE = STATE_LIKELY
+            elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
+                P_DETECT, PERSON_POSITION = \
+                    person_position_1_hit(HIT_ARRAY, \
+                                          SERVO_POSITION)
+                if (P_DETECT):
+                    SERVO_POSITION = move_head(PERSON_POSITION, \
+                                               SERVO_POSITION)
                 else:
-                    P_DETECT, PERSON_POSITION = \
-                              person_position_2_hit(HIT_ARRAY, \
-                                                    SERVO_POSITION)
-                    if (P_DETECT):
-                        SERVO_POSITION = move_head(PERSON_POSITION, \
-                                                   SERVO_POSITION)
-                        PROBABLE_PERSON += 1
-                        if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH):
-                            say_hello()
-                            PERSON_STATE = STATE_DETECTED
-                            PROBABLE_PERSON = 0
-                        else:
-                            PERSON_STATE = STATE_PROBABLE
+                    PERSON_STATE = STATE_LIKELY
+            else:
+                P_DETECT, PERSON_POSITION = \
+                          person_position_2_hit(HIT_ARRAY, \
+                                                SERVO_POSITION)
+                if (P_DETECT):
+                    SERVO_POSITION = move_head(PERSON_POSITION, \
+                                               SERVO_POSITION)
+                    PROBABLE_PERSON += 1
+                    if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH):
+                        say_hello()
+                        PERSON_STATE = STATE_DETECTED
+                        PROBABLE_PERSON = 0
                     else:
-                        PERSON_STATE = STATE_LIKELY
+                        PERSON_STATE = STATE_PROBABLE
+                else:
+                    PERSON_STATE = STATE_LIKELY
 
-                PREV_PERSON_STATE = STATE_PROBABLE
+            PREV_PERSON_STATE = STATE_PROBABLE
 
 ###########################
 # Person Detected !
@@ -1257,57 +1288,48 @@ try:
 #     Event 1: One hit - person left, say goodbye, move to state 1
 #     Event 2: more than one sensor, move head to position, stay
 #     
-            elif (PERSON_STATE == STATE_DETECTED):
-                BURN_HAZARD_CNT = 0
-                debug_print('STATE: DETECTED: detect cnt: ' \
-                           +str(P_DETECT_COUNT))
-                ROAM_COUNT = 0
-                NO_PERSON_COUNT = 0
-                POSSIBLE_PERSON = 0
-                LED_STATE = True
-                GPIO.output(LED_GPIO_PIN, LED_STATE)
-                P_DETECT_COUNT += 1
-                CPU_TEMP = getCPUtemperature()
-                debug_print('Person_count: '+str(P_DETECT_COUNT)+ \
-                           ' Max: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
-                           ' Servo: '+str(SERVO_POSITION)+' CPU: ' \
-                           +str(CPU_TEMP))
-                if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                    say_goodbye()
-                    PERSON_STATE = STATE_NOTHING
-                elif (HIT_COUNT >= 1 and \
-                      HIT_COUNT <= PERSON_HIT_COUNT ):
-                    PERSON_STATE = STATE_POSSIBLE
+        elif (PERSON_STATE == STATE_DETECTED):
+            BURN_HAZARD_CNT = 0
+            debug_print('STATE: DETECTED: detect cnt: ' \
+                       +str(P_DETECT_COUNT))
+            ROAM_COUNT = 0
+            NO_PERSON_COUNT = 0
+            POSSIBLE_PERSON = 0
+            LED_STATE = True
+            GPIO.output(LED_GPIO_PIN, LED_STATE)
+            P_DETECT_COUNT += 1
+            CPU_TEMP = getCPUtemperature()
+            debug_print('Person_count: '+str(P_DETECT_COUNT)+ \
+                       ' Max: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
+                       ' Servo: '+str(SERVO_POSITION)+' CPU: ' \
+                       +str(CPU_TEMP))
+            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
+                say_goodbye()
+                PERSON_STATE = STATE_NOTHING
+            elif (HIT_COUNT >= 1 and \
+                  HIT_COUNT <= PERSON_HIT_COUNT ):
+                PERSON_STATE = STATE_POSSIBLE
 # hit count needs to be above PERSON_HIT_COUNT to validate a person
+            else:
+                P_DETECT, PERSON_POSITION = \
+                          person_position_2_hit(HIT_ARRAY, \
+                                                SERVO_POSITION)
+                if (P_DETECT):
+                    SERVO_POSITION = move_head(PERSON_POSITION, \
+                                               SERVO_POSITION)
                 else:
-                    P_DETECT, PERSON_POSITION = \
-                              person_position_2_hit(HIT_ARRAY, \
-                                                    SERVO_POSITION)
-                    if (P_DETECT):
-                        SERVO_POSITION = move_head(PERSON_POSITION, \
-                                                   SERVO_POSITION)
-                    else:
-                        PERSON_STATE = STATE_LIKELY
+                    PERSON_STATE = STATE_LIKELY
 
-                PREV_PERSON_STATE = STATE_DETECTED
+            PREV_PERSON_STATE = STATE_DETECTED
 
 ###########################
 # Invalid state
 ###########################
-            else:
-                PERSON_STATE = STATE_NOTHING
-                (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
-                servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
-                
-                
-# End of inner While loop
-            break
-
-        if FATAL_ERROR:
-            LOGFILE_HANDLE.write('\r\nFatal error at '+ \
-                                 str(datetime.now()))
-            break
-
+        else:
+            PERSON_STATE = STATE_NOTHING
+            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
+            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
+                        
 #############################
 # End main while loop
 #############################
@@ -1319,10 +1341,7 @@ except KeyboardInterrupt:
 except IOError:
     # do not close the logfile here
     # allows the previous logfile to stay intact for a forensic analysis
-    CRASH_MSG = '\r\nI/O Error; quitting'
-    debug_print(CRASH_MSG)
+    debug_print('\r\nI/O Error; quitting')
     if SERVO_ENABLED:
         SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
-    pygame.quit()
-    sys.exit()
-
+    panic()
