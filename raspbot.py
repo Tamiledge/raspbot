@@ -96,23 +96,54 @@ def set_servo_to_position (new_position):
            
         return final_position
 
-FAR_ONE = 240       
-NEAR_ONE = 100      
-FAR_TWO = 170       
-NEAR_THREE = 30     
-# 0001 hits = FAR_ONE CCW
-# 0010 hits = NEAR_ONE CCW
-# 0100 hits = NEAR_ONE CW
-# 1000 hits = FAR_ONE CW
-#
-# 0011 hits = FAR_TWO CCW
-# 0110 hits = no change
-# 1100 hits = FAR_TWO CW
-#
-# 0111 hits = NEAR_THREE CCW
-# 1110 hits = NEAR_THREE CW
-# 1111 hits = no change
+# all the servo constants
+LOW_TO_HIGH_IS_COUNTERCLOCKWISE = 0
+LOW_TO_HIGH_IS_CLOCKWISE = 1
+HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE
+SERVO_TYPE = HITEC_HS55
+CTR_SERVO_POSITION = 1500
+MINIMUM_SERVO_GRANULARITY = 10  # microseconds
+SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
+SERVO_CUR_DIR_CCW = 2
+ROAMING_GRANULARTY = 50
+# Strange things happen: Some servos move CW and others move CCW for the
+# same number. # it is possible that the "front" of the servo might be
+# treated differently and it seams that the colors of the wires on the
+# servo might indicate different servos:
+# brown, red, orange seems to be HIGH_TO_LOW is clockwise
+# (2400 is full CCW and 600 is full CW)
+# black, red, yellos seems to be LOW_TO_HIGH is clockwise
+# (2400 is full CW and 600 is full CCW)
+if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+    MIN_SERVO_POSITION = 2300
+    MAX_SERVO_POSITION = 600
+    SERVO_LIMIT_CW = MIN_SERVO_POSITION
+    SERVO_LIMIT_CCW = MAX_SERVO_POSITION
+else:
+    MIN_SERVO_POSITION = 600
+    MAX_SERVO_POSITION = 2300
+    SERVO_LIMIT_CW = MAX_SERVO_POSITION
+    SERVO_LIMIT_CCW = MIN_SERVO_POSITION
 
+MOVE_DIST_CLOSE = 30     
+MOVE_DIST_SHORT = 100      
+MOVE_DIST_MEDIUM = 170       
+MOVE_DIST_FAR = 240       
+
+def resolve_new_position(move_cw, servo_pos, move_distance):
+        if (move_cw):
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                new_position = servo_pos + move_distance
+            else:
+                new_position = servo_pos - move_distance
+        else:
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                new_position = servo_pos - move_distance
+            else:
+                new_position = servo_pos + move_distance
+
+        return new_position
+    
 def person_position_1_hit(hit_array_1, s_position):
     """
     Detect a persons presence using "greater than one algorithm"
@@ -128,51 +159,42 @@ def person_position_1_hit(hit_array_1, s_position):
         move_dist_1 = 0
     elif (hit_array_1[0] == 0 and hit_array_1[1] == 0 and \
           hit_array_1[2] == 0 and hit_array_1[3] >= 1):
-        move_dist_1 = FAR_ONE
+        move_dist_1 = MOVE_DIST_FAR
         move_cw_1 = False
     elif (hit_array_1[0] == 0 and hit_array_1[1] == 0 and \
           hit_array_1[2] >= 1 and hit_array_1[3] == 0):
-        move_dist_1 = NEAR_ONE
+        move_dist_1 = MOVE_DIST_SHORT
         move_cw_1 = False
     elif (hit_array_1[0] == 0 and hit_array_1[1] >= 1 and \
           hit_array_1[2] == 0 and hit_array_1[3] == 0):
-        move_dist_1 = NEAR_ONE
+        move_dist_1 = MOVE_DIST_SHORT
         move_cw_1 = True
     elif (hit_array_1[0] >= 1 and hit_array_1[1] == 0 and \
           hit_array_1[2] == 0 and hit_array_1[3] == 0):
-        move_dist_1 = FAR_ONE
+        move_dist_1 = MOVE_DIST_FAR
         move_cw_1 = True
     elif (hit_array_1[0] == 0 and hit_array_1[1] == 0 and \
           hit_array_1[2] >= 1 and hit_array_1[3] >= 1):
-        move_dist_1 = FAR_TWO
+        move_dist_1 = MOVE_DIST_MEDIUM
         move_cw_1 = False
     elif (hit_array_1[0] >= 1 and hit_array_1[1] >= 1 and \
           hit_array_1[2] == 0 and hit_array_1[3] == 0):
-        move_dist_1 = FAR_TWO
+        move_dist_1 = MOVE_DIST_MEDIUM
         move_cw_1 = True
     elif (hit_array_1[0] == 0 and hit_array_1[1] >= 1 and \
           hit_array_1[2] >= 1 and hit_array_1[3] >= 1):
-        move_dist_1 = NEAR_THREE
+        move_dist_1 = MOVE_DIST_CLOSE
         move_cw_1 = False
     elif (hit_array_1[0] >= 1 and hit_array_1[1] >= 1 and \
           hit_array_1[2] >= 1 and hit_array_1[3] == 0):
-        move_dist_1 = NEAR_THREE
+        move_dist_1 = MOVE_DIST_CLOSE
         move_cw_1 = True
     else:
         # no person detected
         person_det_1 = False
 
     if (move_dist_1 > 0):
-        if (move_cw_1):
-            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                person_pos_1 = s_position + move_dist_1
-            else:
-                person_pos_1 = s_position - move_dist_1
-        else:
-            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                person_pos_1 = s_position - move_dist_1
-            else:
-                person_pos_1 = s_position + move_dist_1
+        person_pos_1 = resolve_new_position(move_cw_1, s_position, move_dist_1)
 
     debug_print('person_position_1: Pos: '+str(person_pos_1)+ \
                 ' Det: '+str(person_det_1))
@@ -195,45 +217,36 @@ def person_position_2_hit(hit_array_2, s_position):
         move_dist_2 = 0
     elif (hit_array_2[0] >= 2 and hit_array_2[1] <= 1 and \
           hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
-        move_dist_2 = FAR_ONE
+        move_dist_2 = MOVE_DIST_FAR
         move_cw_2 = True
 # Sometimes a stationary person can show up 0200 and 0020 alternatively
 # without moving causing the robot to oscillate
 ##    elif (hit_array_2[0] <= 1 and hit_array_2[1] >= 2 and \
 ##          hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
-##        move_dist_2 = NEAR_ONE
+##        move_dist_2 = MOVE_DIST_SHORT
 ##        move_cw_2 = True
 ##    elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
 ##          hit_array_2[2] >= 2 and hit_array_2[3] <= 1):
-##        move_dist_2 = NEAR_ONE
+##        move_dist_2 = MOVE_DIST_SHORT
 ##        move_cw_2 = False
     elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
           hit_array_2[2] <= 1 and hit_array_2[3] >= 2):
-        move_dist_2 = FAR_ONE
+        move_dist_2 = MOVE_DIST_FAR
         move_cw_2 = False
     elif (hit_array_2[0] >= 2 and hit_array_2[1] >= 2 and \
           hit_array_2[2] <= 1 and hit_array_2[3] <= 1):
-        move_dist_2 = NEAR_THREE
+        move_dist_2 = MOVE_DIST_CLOSE
         move_cw_2 = True
     elif (hit_array_2[0] <= 1 and hit_array_2[1] <= 1 and \
           hit_array_2[2] >= 2 and hit_array_2[3] >= 2):
-        move_dist_2 = NEAR_THREE
+        move_dist_2 = MOVE_DIST_CLOSE
         move_cw_2 = False
     else:
         # no person detected
         person_det_2 = False
 
     if (move_dist_2 > 0):
-        if (move_cw_2):
-            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                person_pos_2 = s_position + move_dist_2
-            else:
-                person_pos_2 = s_position - move_dist_2
-        else:
-            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                person_pos_2 = s_position - move_dist_2
-            else:
-                person_pos_2 = s_position + move_dist_2
+        person_pos_2 = resolve_new_position(move_cw_2, s_position, move_dist_2)
 
     debug_print('person_position_2: Pos: '+str(person_pos_2)+ \
                 ' Det: '+str(person_det_2))
@@ -400,7 +413,19 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     debug_print(msg)
     if SERVO_ENABLED:
         servo_in.stop_servo(SERVO_GPIO_PIN)
-    GPIO.output(LED_GPIO_PIN, LED_STATE)
+    GPIO.output(LED_GPIO_PIN, LED_OFF)
+    GPIO.output(LED0_RED, LED_OFF)
+    GPIO.output(LED0_YEL, LED_OFF)
+    GPIO.output(LED0_GRN, LED_OFF)
+    GPIO.output(LED1_RED, LED_OFF)
+    GPIO.output(LED1_YEL, LED_OFF)
+    GPIO.output(LED1_GRN, LED_OFF)
+    GPIO.output(LED2_RED, LED_OFF)
+    GPIO.output(LED2_YEL, LED_OFF)
+    GPIO.output(LED2_GRN, LED_OFF)
+    GPIO.output(LED3_RED, LED_OFF)
+    GPIO.output(LED3_YEL, LED_OFF)
+    GPIO.output(LED3_GRN, LED_OFF)
     py_game.quit()
     log_file.write(msg+' @ '+str(datetime.now()))
     log_file.close
@@ -462,6 +487,8 @@ ROAM_MAX = 600          # Max number of times to roam between person
 LOG_MAX = 1200
 RAND = 0                # Causes random head movement when idle
 BURN_HAZARD_TEMP = 100  # temperature at which a warning is given
+BURN_HAZARD_CNT = 0     # number of times burn hazard detected
+BURN_HAZARD_HIT = 10    # Number used in Hit array to indicate hazard
 TEMPMARGIN = 5          # degrees > than room temp to detect person
 PERSON_TEMP_THRESHOLD = 79  # degrees fahrenheit
 MONITOR = 1             # assume a monitor is attached
@@ -470,48 +497,11 @@ MONITOR = 1             # assume a monitor is attached
 # from other servos. Therefore, this next constant is used to change the
 # software to use the appropriate servo. The HiTEC HS-55 Feather servo.
 
-LOW_TO_HIGH_IS_COUNTERCLOCKWISE = 0
-LOW_TO_HIGH_IS_CLOCKWISE = 1
-HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE
-SERVO_TYPE = HITEC_HS55
-
-CTR_SERVO_POSITION = 1500
-MINIMUM_SERVO_GRANULARITY = 10  # microseconds
-SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
-SERVO_CUR_DIR_CCW = 2
-ROAMING_GRANULARTY = 50
 HIT_WEIGHT_PERCENT = 0.1
 PERSON_TEMP_SUM_THRESHOLD = 3
 DETECT_COUNT_THRESH = 3
 PERSON_HIT_COUNT = 4
 PROBABLE_PERSON_THRESH = 4  # used to determine when to say hello
-
-# Strange things happen: Some servos move CW and others move CCW for the
-# same number. # it is possible that the "front" of the servo might be
-# treated differently and it seams that the colors of the wires on the
-# servo might indicate different servos:
-# brown, red, orange seems to be HIGH_TO_LOW is clockwise
-# (2400 is full CCW and 600 is full CW)
-# black, red, yellos seems to be LOW_TO_HIGH is clockwise
-# (2400 is full CW and 600 is full CCW)
-if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-    MIN_SERVO_POSITION = 2300
-    MAX_SERVO_POSITION = 600
-    SERVO_LIMIT_CW = MIN_SERVO_POSITION
-    SERVO_LIMIT_CCW = MAX_SERVO_POSITION
-    X_DELTA_0 = 200
-    X_DELTA_1 = 100
-    X_DELTA_2 = -100
-    X_DELTA_3 = -200
-else:
-    MIN_SERVO_POSITION = 600
-    MAX_SERVO_POSITION = 2300
-    SERVO_LIMIT_CW = MAX_SERVO_POSITION
-    SERVO_LIMIT_CCW = MIN_SERVO_POSITION
-    X_DELTA_0 = -200
-    X_DELTA_1 = -100
-    X_DELTA_2 = 100
-    X_DELTA_3 = 200
 
 # Logfile
 LOGFILE_NAME = 'raspbot_logfile.txt'
@@ -719,7 +709,6 @@ try:
 # so this is used to wait a while before saying goodbye
                             
     P_DETECT_COUNT = 0
-    BURN_HAZARD = 0
 ################################
 # initialize the PID controller
 ################################
@@ -960,7 +949,6 @@ try:
 ###########################
 
             PREVIOUS_HIT_COUNT = HIT_COUNT
-#            HIT_ARRAY, HIT_COUNT = get_hit_array(TEMPERATURE_ARRAY)
             HIT_COUNT = 0
             HIT_ARRAY = [0, 0, 0, 0]
             HIT_ARRAY_TEMP = \
@@ -970,7 +958,7 @@ try:
             for element in range(0, OMRON_DATA_LIST):
                 if (TEMPERATURE_ARRAY[element] > \
                     BURN_HAZARD_TEMP):
-                    HIT_ARRAY_TEMP[element] = 10
+                    HIT_ARRAY_TEMP[element] = BURN_HAZARD_HIT
                     HIT_COUNT += 1
                     
                 elif (TEMPERATURE_ARRAY[element] > \
@@ -1046,11 +1034,11 @@ try:
 ###########################
             if (PERSON_STATE == STATE_BURN):
                 debug_print('STATE: BURN: Burn Hazard cnt: ' \
-                           +str(BURN_HAZARD)+' ROAM_COUNT = ' \
+                           +str(BURN_HAZARD_CNT)+' ROAM_COUNT = ' \
                            +str(ROAM_COUNT))
                 ROAM_COUNT = 0
                 POSSIBLE_PERSON = 0
-                BURN_HAZARD += 1
+                BURN_HAZARD_CNT += 1
                 LED_STATE = True
                 GPIO.output(LED_GPIO_PIN, LED_STATE)
                 if MONITOR:
@@ -1068,11 +1056,38 @@ try:
                            +"%.1f"%max(TEMPERATURE_ARRAY)+" degrees")
                 
                 # play this only once, otherwise, its too annoying
-                if (BURN_HAZARD == 1):
+                if (BURN_HAZARD_CNT == 1):
                     play_sound(MAX_VOLUME, BURN_FILE_NAME)
                     debug_print('Played Burn warning audio')
 
-# Drop back to looking for a person
+                MOVE_DIST = 0
+                MOVE_CW = True
+                HAZARD_POSITION = 0
+                
+                if (HIT_ARRAY[0] > BURN_HAZARD_HIT and \
+                    HIT_ARRAY[1] < BURN_HAZARD_HIT and \
+                    HIT_ARRAY[2] < BURN_HAZARD_HIT and \
+                    HIT_ARRAY[3] < BURN_HAZARD_HIT):
+                        MOVE_DIST = MOVE_DIST_SHORT
+                        MOVE_CW = True
+
+                elif (HIT_ARRAY[0] < BURN_HAZARD_HIT and \
+                      HIT_ARRAY[1] < BURN_HAZARD_HIT and \
+                      HIT_ARRAY[2] < BURN_HAZARD_HIT and \
+                      HIT_ARRAY[3] > BURN_HAZARD_HIT):
+                          MOVE_DIST = MOVE_DIST_SHORT
+                          MOVE_CW = False
+
+                if (MOVE_DIST > 0):
+                    HAZARD_POSITION = \
+                        resolve_new_position(MOVE_CW, \
+                                             SERVO_POSITION, \
+                                             MOVE_DIST)
+                    debug_print('hazard_position: Pos: '+ \
+                                str(HAZARD_POSITION))
+                    SERVO_POSITION = move_head(HAZARD_POSITION, \
+                                               SERVO_POSITION)
+
                 if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
                     PERSON_STATE = STATE_BURN
                 else:
@@ -1103,7 +1118,7 @@ try:
                 P_DETECT_COUNT = 0
                 POSSIBLE_PERSON = 0
                 PROBABLE_PERSON = 0
-                BURN_HAZARD = 0
+                BURN_HAZARD_CNT = 0
                 if MONITOR:
                     SCREEN_DISPLAY.fill(name_to_rgb('white'), \
                                         MESSAGE_AREA)
@@ -1133,7 +1148,7 @@ try:
 #     Event 2: More than one hit - state 2
 #
             elif (PERSON_STATE == STATE_POSSIBLE):
-                BURN_HAZARD = 0
+                BURN_HAZARD_CNT = 0
                 debug_print('STATE: POSSIBLE: Possible Person cnt: ' \
                            +str(POSSIBLE_PERSON))
                 NO_PERSON_COUNT += 1
@@ -1169,7 +1184,7 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
             elif (PERSON_STATE == STATE_LIKELY):
-                BURN_HAZARD = 0
+                BURN_HAZARD_CNT = 0
                 debug_print('STATE: LIKELY: No Person cnt: ' \
                             +str(NO_PERSON_COUNT))
                 POSSIBLE_PERSON = 0
@@ -1200,7 +1215,7 @@ try:
 #     Event 2: more than one sensor has a hit, move head, say hello
 #
             elif (PERSON_STATE == STATE_PROBABLE):
-                BURN_HAZARD = 0
+                BURN_HAZARD_CNT = 0
                 POSSIBLE_PERSON = 0
                 debug_print('STATE: PROBABLE: Probable Person cnt: ' \
                             +str(PROBABLE_PERSON))
@@ -1243,7 +1258,7 @@ try:
 #     Event 2: more than one sensor, move head to position, stay
 #     
             elif (PERSON_STATE == STATE_DETECTED):
-                BURN_HAZARD = 0
+                BURN_HAZARD_CNT = 0
                 debug_print('STATE: DETECTED: detect cnt: ' \
                            +str(P_DETECT_COUNT))
                 ROAM_COUNT = 0
