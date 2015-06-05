@@ -37,6 +37,39 @@ from omron_src import omron_read     # contains omron functions
 from pid import PID
 from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb
 
+# GPIO assignments for the hit LEDs (three colors, red, yellow, green)
+#   red = burn hazard (hit_array[x] > 4
+#   yellow = possible person (hit_array[x] == 1
+#   green = person probable (hit_array[x] >=2 <= 4)
+#   dark = no hit detected (hit_array[x] = 0)
+#
+#   LEDs are connected to ground on one pin and the other three pins
+#       (RGY) take +3v through a 1k resistor. The LEDs are LUMEX
+#       SSL-LX5097 or DigiKey 67-2184-ND
+#
+#   LED0 (_RED, _YEL, _GRN) = hit_array[0] 
+#   LED1 (_RED, _YEL, _GRN) = hit_array[1] 
+#   LED2 (_RED, _YEL, _GRN) = hit_array[2] 
+#   LED3 (_RED, _YEL, _GRN) = hit_array[3] 
+LED0_RED = 11   # AKA: BCM GPIO 17
+LED0_YEL = 12   # AKA: BCM GPIO 18
+LED0_GRN = 13   # AKA: BCM GPIO 27
+
+LED1_RED = 15   # AKA: BCM GPIO 22
+LED1_YEL = 16   # AKA: BCM GPIO 23
+LED1_GRN = 18   # AKA: BCM GPIO 24
+
+LED2_RED = 22   # AKA: BCM GPIO 25
+LED2_YEL = 29   # AKA: BCM GPIO 5
+LED2_GRN = 31   # AKA: BCM GPIO 6
+
+LED3_RED = 32   # AKA: BCM GPIO 12
+LED3_YEL = 35   # AKA: BCM GPIO 19
+LED3_GRN = 36   # AKA: BCM GPIO 16
+
+LED_ON = True
+LED_OFF = False
+
 def debug_print(message):
     """
     Debug messages are printed to display and log file using this
@@ -283,12 +316,21 @@ def move_head(position, servo_pos):
 
         return new_servo_pos
 
-def servo_roam(roam_cnt, servo_pos, servo_dir):
+LAST_KNOWN_LED_POS = 0  # counter keeps track of which LED to light
+LED_POS_MAX = 4
+LIT_LED = LED0_RED
+LED0_COLOR_SET = [LED0_RED, LED0_YEL, LED0_GRN]
+LED1_COLOR_SET = [LED1_RED, LED1_YEL, LED1_GRN]
+LED2_COLOR_SET = [LED2_RED, LED2_YEL, LED2_GRN]
+LED3_COLOR_SET = [LED3_RED, LED3_YEL, LED3_GRN]
+def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     """
     Puts the servo in roaming (person searching) mode
     """
     roam_cnt += 1
+    GPIO.output(lit, LED_OFF)
     if roam_cnt <= ROAM_MAX:
+        
         # determine next servo direction
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             if (servo_pos <= SERVO_LIMIT_CCW and \
@@ -337,6 +379,29 @@ def servo_roam(roam_cnt, servo_pos, servo_dir):
         servo_pos = \
             set_servo_to_position(servo_pos)
 
+        # randomly select a color and light it up
+        if (last_led == 0):
+            lit = random.choice(LED0_COLOR_SET)
+        elif (last_led == 1):
+            lit = random.choice(LED1_COLOR_SET)
+        elif (last_led == 2):
+            lit = random.choice(LED2_COLOR_SET)
+        else:
+            lit = random.choice(LED3_COLOR_SET)
+
+        GPIO.output(lit, LED_ON)
+
+        if (servo_dir == SERVO_CUR_DIR_CW):
+            last_led -= 1
+            if (last_led < 0):
+                last_led = LED_POS_MAX-1
+        else:
+            last_led += 1
+            if (last_led >= LED_POS_MAX):
+                last_led = 0
+
+        debug_print('last LED = '+str(last_led)+' lit LED = '+str(lit))
+
     else:
 # center the servo when roam max is hit
         servo_pos = \
@@ -345,10 +410,10 @@ def servo_roam(roam_cnt, servo_pos, servo_dir):
             SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
 
 # Start roaming again if no action
-        if roam_cnt >= ROAM_MAX*2:
+        if roam_cnt >= ROAM_MAX*20:
             roam_cnt = 0
 
-    return roam_cnt, servo_pos, servo_dir
+    return roam_cnt, servo_pos, servo_dir, last_led, lit
 
 def say_hello():
     """
@@ -482,39 +547,6 @@ SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
 LED_GPIO_PIN = 7    # GPIO number that the LED is connected to
                     # (BCM GPIO_04 (Pi Hat) is the same as BOARD pin 7)
                     # See "Raspberry Pi B+ J8 Header" diagram
-# GPIO assignments for the hit LEDs (three colors, red, yellow, green)
-#   red = burn hazard (hit_array[x] > 4
-#   yellow = possible person (hit_array[x] == 1
-#   green = person probable (hit_array[x] >=2 <= 4)
-#   dark = no hit detected (hit_array[x] = 0)
-#
-#   LEDs are connected to ground on one pin and the other three pins
-#       (RGY) take +3v through a 1k resistor. The LEDs are LUMEX
-#       SSL-LX5097 or DigiKey 67-2184-ND
-#
-#   LED0 (_RED, _YEL, _GRN) = hit_array[0] 
-#   LED1 (_RED, _YEL, _GRN) = hit_array[1] 
-#   LED2 (_RED, _YEL, _GRN) = hit_array[2] 
-#   LED3 (_RED, _YEL, _GRN) = hit_array[3] 
-LED0_RED = 11   # AKA: BCM GPIO 17
-LED0_YEL = 12   # AKA: BCM GPIO 18
-LED0_GRN = 13   # AKA: BCM GPIO 27
-
-LED1_RED = 15   # AKA: BCM GPIO 22
-LED1_YEL = 16   # AKA: BCM GPIO 23
-LED1_GRN = 18   # AKA: BCM GPIO 24
-
-LED2_RED = 22   # AKA: BCM GPIO 25
-LED2_YEL = 29   # AKA: BCM GPIO 5
-LED2_GRN = 31   # AKA: BCM GPIO 6
-
-LED3_RED = 32   # AKA: BCM GPIO 12
-LED3_YEL = 35   # AKA: BCM GPIO 19
-LED3_GRN = 36   # AKA: BCM GPIO 16
-
-LED_ON = True
-LED_OFF = False
-
 DEBUG = 0           # set this to 1 to see debug messages on monitor
 SCREEN_DIMENSIONS = [400, 600]  # setup IR window [0]= width [1]= height
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
@@ -539,7 +571,7 @@ HIT_WEIGHT_PERCENT = 0.1
 PERSON_TEMP_SUM_THRESHOLD = 3
 DETECT_COUNT_THRESH = 3
 PERSON_HIT_COUNT = 4
-PROBABLE_PERSON_THRESH = 4  # used to determine when to say hello
+PROBABLE_PERSON_THRESH = 3  # used to determine when to say hello
 
 # Logfile
 LOGFILE_NAME = 'raspbot_logfile.txt'
@@ -1165,8 +1197,10 @@ try:
             else:
                 PERSON_STATE = STATE_POSSIBLE
 
-            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
-            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
+            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
+             LAST_KNOWN_LED_POS, LIT_LED) = \
+            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
+                       LAST_KNOWN_LED_POS, LIT_LED)
             
             PREV_PERSON_STATE = STATE_NOTHING
                 
@@ -1201,8 +1235,10 @@ try:
             else:
                 PERSON_STATE = STATE_LIKELY
 
-            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
-            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
+            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
+             LAST_KNOWN_LED_POS, LIT_LED) = \
+            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
+                       LAST_KNOWN_LED_POS, LIT_LED)
             
             PREV_PERSON_STATE = STATE_POSSIBLE
             
@@ -1327,9 +1363,11 @@ try:
 ###########################
         else:
             PERSON_STATE = STATE_NOTHING
-            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION) = \
-            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION)
-                        
+            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
+             LAST_KNOWN_LED_POS, LIT_LED) = \
+            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
+                       LAST_KNOWN_LED_POS, LIT_LED)
+                       
 #############################
 # End main while loop
 #############################
