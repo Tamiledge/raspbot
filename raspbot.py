@@ -329,6 +329,8 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     """
     roam_cnt += 1
     GPIO.output(lit, LED_OFF)
+    debug_print('Roam count = '+str(roam_cnt))
+
     if roam_cnt <= ROAM_MAX:
         
         # determine next servo direction
@@ -381,13 +383,13 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 
         # randomly select a color and light it up
         if (last_led == 0):
-            lit = random.choice(LED0_COLOR_SET)
+            lit = LED0_GRN
         elif (last_led == 1):
-            lit = random.choice(LED1_COLOR_SET)
+            lit = LED1_GRN
         elif (last_led == 2):
-            lit = random.choice(LED2_COLOR_SET)
+            lit = LED2_GRN
         else:
-            lit = random.choice(LED3_COLOR_SET)
+            lit = LED3_GRN
 
         GPIO.output(lit, LED_ON)
 
@@ -1344,6 +1346,7 @@ try:
                 PERSON_STATE = STATE_NOTHING
             elif (HIT_COUNT >= 1 and \
                   HIT_COUNT <= PERSON_HIT_COUNT ):
+                say_goodbye()
                 PERSON_STATE = STATE_POSSIBLE
 # hit count needs to be above PERSON_HIT_COUNT to validate a person
             else:
