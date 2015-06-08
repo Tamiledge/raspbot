@@ -1319,6 +1319,8 @@ try:
                     PROBABLE_PERSON += 1
                     if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH):
                         say_hello()
+                        detected_time_stamp = datetime.now()
+                        debug_print('Person detected at '+str(detected_time_stamp))
                         PERSON_STATE = STATE_DETECTED
                         PROBABLE_PERSON = 0
                     else:
