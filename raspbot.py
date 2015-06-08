@@ -654,17 +654,6 @@ try:
 
 # make some space
     print ''
-    if DEBUG:
-        print 'DEBUG switch is on'
-    if SERVO_ENABLED:
-# Initialize servo position
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
-        SERVO_HANDLE = PWM.Servo()
-        SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
-        time.sleep(10.0)            # Wait a sec before starting
-    else:
-        print 'SERVO is off'
 
 # initialize LEDs
     LED_STATE = True
@@ -696,11 +685,32 @@ try:
     GPIO.setup(LED3_GRN, GPIO.OUT)
     GPIO.output(LED3_GRN, LED_ON)
 
+    if SERVO_ENABLED:
+# Initialize servo position
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
+        SERVO_HANDLE = PWM.Servo()
+        SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
+        print('')
+        print('SERVO is on - you have 20 seconds to calibrate it')
+        for g in range(0, 19):
+            print(str(g))
+            time.sleep(1.0)
+    else:
+        print('SERVO is off')
+
+    print ''
+    if DEBUG:
+        print('DEBUG switch is on, initializing Pigpio...')
+
 # intialize pigpio library and socket connection for daemon (pigpiod)
     PIGPIO_HANDLE = pigpio.pi()              # use defaults
     PIGPIO_VERSION = PIGPIO_HANDLE.get_pigpio_version()
 
 # Initialize the selected Omron sensor
+
+    if DEBUG:
+        print('DEBUG switch is on, initializing Omron sensor...')
 
     (OMRON1_HANDLE, OMRON1_RESULT) = \
         omron_init(RASPI_I2C_CHANNEL, OMRON_1, PIGPIO_HANDLE, I2C_BUS)
@@ -811,17 +821,17 @@ try:
 # the CPU can reach 105 easily, so, normally this is turned off    
     CPU_105_ON = False
 
-##    if CONNECTED:
-##    try:
-##        speakSpeechFromText("Connected to the Internet!", "intro.mp3")
-##        print "Connected to internet"
-##        LOGFILE_HANDLE.write('\r\nConnected to the Internet')
-##        play_sound(MAX_VOLUME, "intro.mp3")
-##        CONNECTED = 1
-##    except:
-##        print "Not connected to internet"
-##        LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
-##        CONNECTED = 0
+    if CONNECTED:
+        try:
+            speakSpeechFromText("Connected to the Internet!", "intro.mp3")
+            print "Connected to internet"
+            LOGFILE_HANDLE.write('\r\nConnected to the Internet')
+            play_sound(MAX_VOLUME, "intro.mp3")
+            CONNECTED = 1
+        except:
+            print "Not connected to internet"
+            LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
+            CONNECTED = 0
         
 ###########################
 # Analyze sensor data
