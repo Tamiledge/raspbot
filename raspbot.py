@@ -70,6 +70,12 @@ LED3_GRN = 36   # AKA: BCM GPIO 16
 LED_ON = True
 LED_OFF = False
 
+def get_uptime():
+    f = open("/proc/uptime", "r");
+    t = float(f.read().split()[0])
+    f.close()
+    return t
+
 def debug_print(message):
     """
     Debug messages are printed to display and log file using this
@@ -882,7 +888,9 @@ try:
     POSSIBLE_PERSON_MAX = 10 # after 10 one-hits, move head
     POSSIBLE_PERSON = 0
     PROBABLE_PERSON = 0
-
+    EXERSIZE_TIMEOUT = 1200   # seconds between exersize reminders
+    EXERSIZE_TIMEOUT_BLINKS = 10     # number of times to blink LEDs
+    
 #############################
 # Main while loop
 #############################
@@ -894,7 +902,7 @@ try:
                     +str(MAIN_LOOP_COUNT)+' Pcount: ' \
                     +str(P_DETECT_COUNT)+ \
                     ' Servo: '+str(SERVO_POSITION)+' CPU: '+ \
-                    str(CPU_TEMP)+ \
+                    str(CPU_TEMP)+' Uptime = '+str(get_uptime())+ \
                     '\r\n^^^^^^^^^^^^^^^^^^^^')
 # Check for overtemp
         if (CPU_TEMP >= 105.0):
@@ -1317,9 +1325,10 @@ try:
                     SERVO_POSITION = move_head(PERSON_POSITION, \
                                                SERVO_POSITION)
                     PROBABLE_PERSON += 1
-                    if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH):
+                    if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH \
+                        and HIT_COUNT > 5):
                         say_hello()
-                        detected_time_stamp = datetime.now()
+                        detected_time_stamp = get_uptime()
                         debug_print('Person detected at '+str(detected_time_stamp))
                         PERSON_STATE = STATE_DETECTED
                         PROBABLE_PERSON = 0
@@ -1353,6 +1362,54 @@ try:
                        ' Max: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
                        ' Servo: '+str(SERVO_POSITION)+' CPU: ' \
                        +str(CPU_TEMP))
+
+# every 20 minutes that a person is detected, have the bot remind
+# the person to get some excersize.
+
+            uptime_now = get_uptime()
+            if (uptime_now - detected_time_stamp) >= EXERSIZE_TIMEOUT:
+                say_hello()
+                detected_time_stamp = uptime_now    # reset
+                for b in range(0, EXERSIZE_TIMEOUT_BLINKS):
+                    GPIO.output(LED0_GRN, LED_OFF)
+                    GPIO.output(LED1_GRN, LED_OFF)
+                    GPIO.output(LED2_GRN, LED_OFF)
+                    GPIO.output(LED3_GRN, LED_OFF)
+                    GPIO.output(LED0_YEL, LED_OFF)
+                    GPIO.output(LED1_YEL, LED_OFF)
+                    GPIO.output(LED2_YEL, LED_OFF)
+                    GPIO.output(LED3_YEL, LED_OFF)
+                    GPIO.output(LED0_RED, LED_ON)
+                    GPIO.output(LED1_RED, LED_ON)
+                    GPIO.output(LED2_RED, LED_ON)
+                    GPIO.output(LED3_RED, LED_ON)
+                    time.sleep(0.3)
+                    GPIO.output(LED0_RED, LED_OFF)
+                    GPIO.output(LED1_RED, LED_OFF)
+                    GPIO.output(LED2_RED, LED_OFF)
+                    GPIO.output(LED3_RED, LED_OFF)
+                    time.sleep(0.3)
+                    GPIO.output(LED0_YEL, LED_ON)
+                    GPIO.output(LED1_YEL, LED_ON)
+                    GPIO.output(LED2_YEL, LED_ON)
+                    GPIO.output(LED3_YEL, LED_ON)
+                    time.sleep(0.3)
+                    GPIO.output(LED0_YEL, LED_OFF)
+                    GPIO.output(LED1_YEL, LED_OFF)
+                    GPIO.output(LED2_YEL, LED_OFF)
+                    GPIO.output(LED3_YEL, LED_OFF)
+                    time.sleep(0.3)
+                    GPIO.output(LED0_GRN, LED_ON)
+                    GPIO.output(LED1_GRN, LED_ON)
+                    GPIO.output(LED2_GRN, LED_ON)
+                    GPIO.output(LED3_GRN, LED_ON)
+                    time.sleep(0.3)
+                    GPIO.output(LED0_GRN, LED_OFF)
+                    GPIO.output(LED1_GRN, LED_OFF)
+                    GPIO.output(LED2_GRN, LED_OFF)
+                    GPIO.output(LED3_GRN, LED_OFF)
+                    time.sleep(0.3)
+
             if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
                 say_goodbye()
                 PERSON_STATE = STATE_NOTHING
