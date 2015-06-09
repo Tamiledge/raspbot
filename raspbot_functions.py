@@ -1,5 +1,6 @@
 
 from datetime import datetime
+import urllib, pycurl, os           # needed for text to speech
 
 # function for celcius to farenheiht conversion
 def c2f (centigrade):
