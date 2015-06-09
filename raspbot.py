@@ -31,11 +31,11 @@ from webcolors import name_to_rgb
 import pygame
 from pygame.locals import Rect, QUIT, KEYDOWN, K_q, K_ESCAPE
 import random
-from omron_src import omron_init     # contains omron functions
-from omron_src import omron_read     # contains omron functions
-#import urllib, pycurl, os   # needed for text to speech
+from omron_src import omron_init    # contains omron functions
+from omron_src import omron_read    # contains omron functions
+#import urllib, pycurl, os           # needed for text to speech
 from pid import PID
-from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb
+from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb, speakSpeechFromText
 
 # GPIO assignments for the hit LEDs (three colors, red, yellow, green)
 #   red = burn hazard (hit_array[x] > 4
@@ -732,37 +732,6 @@ try:
 
     debug_print('Omron 1 sensor result = '+str(OMRON1_RESULT))
 
-# setup the IR color window
-    if MONITOR:
-        SCREEN_DISPLAY = pygame.display.set_mode(SCREEN_DIMENSIONS)
-        pygame.display.set_caption('IR temp array')
-
-# initialize the window QUADRANT areas for displaying temperature
-        PIXEL_WIDTH = SCREEN_DIMENSIONS[0]/4
-        PX = (PIXEL_WIDTH*3, PIXEL_WIDTH*2, PIXEL_WIDTH, 0)
-# using width here to keep an equal square; bottom section for messages
-        PIXEL_HEIGHT = SCREEN_DIMENSIONS[0]/4
-        PY = (0, PIXEL_WIDTH, PIXEL_WIDTH*2, PIXEL_WIDTH*3)
-        for x in range(0, 4):
-            for y in range(0, 4):
-                QUADRANT[(x*4)+y] = \
-                    (PX[x], PY[y], PIXEL_WIDTH, PIXEL_HEIGHT)
-                CENTER[(x*4)+y] = \
-                    (PIXEL_WIDTH/2+PX[x], PIXEL_HEIGHT/2+PY[y])
-
-    # initialize the location of the message area
-        ROOM_TEMP_AREA = (0, SCREEN_DIMENSIONS[0], \
-                          SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
-        ROOM_TEMP_MSG_XY = (SCREEN_DIMENSIONS[0]/2, \
-                        (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
-
-        MESSAGE_AREA = (0, \
-                        SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, \
-                        SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
-        MESSAGE_AREA_XY = (SCREEN_DIMENSIONS[0]/2, \
-                        (SCREEN_DIMENSIONS[1]/6)+ \
-                        (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
-
 # initialze the music player
     pygame.mixer.init()
 
@@ -833,6 +802,8 @@ try:
         "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
     BURN_FILE_NAME = \
         "/home/pi/projects_ggg/raspbot/snd/girl-warning.mp3"
+    STRETCH_FILE_NAME = \
+        "/home/pi/projects_ggg/raspbot/snd/stretch.mp3"                      
     CPU_105_FILE_NAME = \
         "/home/pi/projects_ggg/raspbot/snd/girl-105a.mp3"
     CPU_110_FILE_NAME = \
@@ -847,16 +818,13 @@ try:
     CPU_105_ON = False
 
     if CONNECTED:
-        try:
-            speakSpeechFromText("Connected to the Internet!", "intro.mp3")
-            print "Connected to internet"
-            LOGFILE_HANDLE.write('\r\nConnected to the Internet')
-            play_sound(MAX_VOLUME, "intro.mp3")
-            CONNECTED = 1
-        except:
-            print "Not connected to internet"
-            LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
-            CONNECTED = 0
+        speakSpeechFromText("Now might be a good time to stand up and stretch", "stretch.mp3")
+        print "Connected to internet"
+        LOGFILE_HANDLE.write('\r\nConnected to the Internet')
+        play_sound(MAX_VOLUME, "stretch.mp3")
+    else:
+        print "Not connected to internet"
+        LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
         
 ###########################
 # Analyze sensor data
@@ -908,8 +876,40 @@ try:
     POSSIBLE_PERSON = 0
     PROBABLE_PERSON = 0
     EXERSIZE_TIMEOUT = 1200   # seconds between exersize reminders
-    EXERSIZE_TIMEOUT_BLINKS = 10     # number of times to blink LEDs
+    EXERSIZE_TIMEOUT_BLINKS = 10    # number of times to blink LEDs
+                                    # each blink takes 2 seconds
     
+# setup the IR color window
+    if MONITOR:
+        SCREEN_DISPLAY = pygame.display.set_mode(SCREEN_DIMENSIONS)
+        pygame.display.set_caption('IR temp array')
+
+# initialize the window QUADRANT areas for displaying temperature
+        PIXEL_WIDTH = SCREEN_DIMENSIONS[0]/4
+        PX = (PIXEL_WIDTH*3, PIXEL_WIDTH*2, PIXEL_WIDTH, 0)
+# using width here to keep an equal square; bottom section for messages
+        PIXEL_HEIGHT = SCREEN_DIMENSIONS[0]/4
+        PY = (0, PIXEL_WIDTH, PIXEL_WIDTH*2, PIXEL_WIDTH*3)
+        for x in range(0, 4):
+            for y in range(0, 4):
+                QUADRANT[(x*4)+y] = \
+                    (PX[x], PY[y], PIXEL_WIDTH, PIXEL_HEIGHT)
+                CENTER[(x*4)+y] = \
+                    (PIXEL_WIDTH/2+PX[x], PIXEL_HEIGHT/2+PY[y])
+
+    # initialize the location of the message area
+        ROOM_TEMP_AREA = (0, SCREEN_DIMENSIONS[0], \
+                          SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+        ROOM_TEMP_MSG_XY = (SCREEN_DIMENSIONS[0]/2, \
+                        (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
+
+        MESSAGE_AREA = (0, \
+                        SCREEN_DIMENSIONS[0]+SCREEN_DIMENSIONS[0]/4, \
+                        SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[0]/4)
+        MESSAGE_AREA_XY = (SCREEN_DIMENSIONS[0]/2, \
+                        (SCREEN_DIMENSIONS[1]/6)+ \
+                        (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
+
 #############################
 # Main while loop
 #############################
@@ -1391,7 +1391,7 @@ try:
 
             uptime_now = get_uptime()
             if (uptime_now - detected_time_stamp) >= EXERSIZE_TIMEOUT:
-                say_hello()
+                play_sound(MAX_VOLUME, STRETCH_FILE_NAME)
                 detected_time_stamp = uptime_now    # reset
                 for b in range(0, EXERSIZE_TIMEOUT_BLINKS):
                     GPIO.output(LED0_GRN, LED_OFF)
