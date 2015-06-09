@@ -417,9 +417,26 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         if SERVO_ENABLED:
             SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
 
+        GPIO.output(LED0_RED, LED_OFF)
+        GPIO.output(LED1_RED, LED_OFF)
+        GPIO.output(LED2_RED, LED_OFF)
+        GPIO.output(LED3_RED, LED_OFF)
+        GPIO.output(LED0_YEL, LED_OFF)
+        GPIO.output(LED1_YEL, LED_OFF)
+        GPIO.output(LED2_YEL, LED_OFF)
+        GPIO.output(LED3_YEL, LED_OFF)
+        GPIO.output(LED0_GRN, LED_ON)
+        GPIO.output(LED1_GRN, LED_ON)
+        GPIO.output(LED2_GRN, LED_ON)
+        GPIO.output(LED3_GRN, LED_ON)
+
 # Start roaming again if no action
         if roam_cnt >= ROAM_MAX*20:
             roam_cnt = 0
+            GPIO.output(LED0_GRN, LED_OFF)
+            GPIO.output(LED1_GRN, LED_OFF)
+            GPIO.output(LED2_GRN, LED_OFF)
+            GPIO.output(LED3_GRN, LED_OFF)
 
     return roam_cnt, servo_pos, servo_dir, last_led, lit
 
@@ -477,9 +494,9 @@ def play_sound(volume, message):
     # pygame.mixer.music.set_volume(volume)         
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
-# commented next line thinking that it might be causing the garbling
-#    while pygame.mixer.music.get_busy() == True:
-#        continue
+# this is not causing the garbling
+    while pygame.mixer.music.get_busy() == True:
+        continue
 
 def crash_and_burn(msg, py_game, servo_in, log_file):
     """
@@ -661,36 +678,6 @@ try:
 # make some space
     print ''
 
-# initialize LEDs
-    LED_STATE = True
-    GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
-    GPIO.output(LED_GPIO_PIN, LED_STATE)
-
-    GPIO.setup(LED0_RED, GPIO.OUT)
-    GPIO.output(LED0_RED, LED_ON)
-    GPIO.setup(LED0_YEL, GPIO.OUT)
-    GPIO.output(LED0_YEL, LED_ON)
-    GPIO.setup(LED0_GRN, GPIO.OUT)
-    GPIO.output(LED0_GRN, LED_ON)
-    GPIO.setup(LED1_RED, GPIO.OUT)
-    GPIO.output(LED1_RED, LED_ON)
-    GPIO.setup(LED1_YEL, GPIO.OUT)
-    GPIO.output(LED1_YEL, LED_ON)
-    GPIO.setup(LED1_GRN, GPIO.OUT)
-    GPIO.output(LED1_GRN, LED_ON)
-    GPIO.setup(LED2_RED, GPIO.OUT)
-    GPIO.output(LED2_RED, LED_ON)
-    GPIO.setup(LED2_YEL, GPIO.OUT)
-    GPIO.output(LED2_YEL, LED_ON)
-    GPIO.setup(LED2_GRN, GPIO.OUT)
-    GPIO.output(LED2_GRN, LED_ON)
-    GPIO.setup(LED3_RED, GPIO.OUT)
-    GPIO.output(LED3_RED, LED_ON)
-    GPIO.setup(LED3_YEL, GPIO.OUT)
-    GPIO.output(LED3_YEL, LED_ON)
-    GPIO.setup(LED3_GRN, GPIO.OUT)
-    GPIO.output(LED3_GRN, LED_ON)
-
     if SERVO_ENABLED:
 # Initialize servo position
         GPIO.setmode(GPIO.BOARD)
@@ -698,10 +685,6 @@ try:
         SERVO_HANDLE = PWM.Servo()
         SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
         print('')
-        print('SERVO is on - you have 20 seconds to calibrate it')
-        for g in range(0, 19):
-            print(str(g))
-            time.sleep(1.0)
     else:
         print('SERVO is off')
 
@@ -783,6 +766,42 @@ try:
 # initialze the music player
     pygame.mixer.init()
 
+# initialize LEDs
+    LED_STATE = True
+    GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
+    GPIO.output(LED_GPIO_PIN, LED_STATE)
+
+    GPIO.setup(LED0_RED, GPIO.OUT)
+    GPIO.output(LED0_RED, LED_ON)
+    GPIO.setup(LED0_YEL, GPIO.OUT)
+    GPIO.output(LED0_YEL, LED_ON)
+    GPIO.setup(LED0_GRN, GPIO.OUT)
+    GPIO.output(LED0_GRN, LED_ON)
+    GPIO.setup(LED1_RED, GPIO.OUT)
+    GPIO.output(LED1_RED, LED_ON)
+    GPIO.setup(LED1_YEL, GPIO.OUT)
+    GPIO.output(LED1_YEL, LED_ON)
+    GPIO.setup(LED1_GRN, GPIO.OUT)
+    GPIO.output(LED1_GRN, LED_ON)
+    GPIO.setup(LED2_RED, GPIO.OUT)
+    GPIO.output(LED2_RED, LED_ON)
+    GPIO.setup(LED2_YEL, GPIO.OUT)
+    GPIO.output(LED2_YEL, LED_ON)
+    GPIO.setup(LED2_GRN, GPIO.OUT)
+    GPIO.output(LED2_GRN, LED_ON)
+    GPIO.setup(LED3_RED, GPIO.OUT)
+    GPIO.output(LED3_RED, LED_ON)
+    GPIO.setup(LED3_YEL, GPIO.OUT)
+    GPIO.output(LED3_YEL, LED_ON)
+    GPIO.setup(LED3_GRN, GPIO.OUT)
+    GPIO.output(LED3_GRN, LED_ON)
+
+    if SERVO_ENABLED:
+        print('SERVO is on - you have 20 seconds to calibrate the bot head')
+        for g in range(0, 19):
+            print(str(g))
+            time.sleep(1.0)
+
     debug_print('Looking for a person')
 
     NO_PERSON_COUNT = 0
@@ -811,7 +830,7 @@ try:
     GOODBYE_FILE_NAME = \
         "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.mp3"
     BADGE_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-badge1.mp3"
+        "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
     BURN_FILE_NAME = \
         "/home/pi/projects_ggg/raspbot/snd/girl-warning.mp3"
     CPU_105_FILE_NAME = \
@@ -902,7 +921,7 @@ try:
                     +str(MAIN_LOOP_COUNT)+' Pcount: ' \
                     +str(P_DETECT_COUNT)+ \
                     ' Servo: '+str(SERVO_POSITION)+' CPU: '+ \
-                    str(CPU_TEMP)+' Uptime = '+str(get_uptime())+ \
+                    str(CPU_TEMP)+' Uptime(sec) = '+str(get_uptime())+ \
                     '\r\n^^^^^^^^^^^^^^^^^^^^')
 # Check for overtemp
         if (CPU_TEMP >= 105.0):
@@ -1250,6 +1269,7 @@ try:
                         SERVO_POSITION = \
                             move_head(PERSON_POSITION, \
                                       SERVO_POSITION)
+                        ROAM_COUNT = 0
                 else:
                     PERSON_STATE = STATE_NOTHING
             else:
@@ -1287,6 +1307,7 @@ try:
                 else:
                     SERVO_POSITION = move_head(PERSON_POSITION, \
                                                SERVO_POSITION)
+                    ROAM_COUNT = 0
                     
                 if (HIT_COUNT > PERSON_HIT_COUNT):
                     PERSON_STATE = STATE_PROBABLE
@@ -1315,6 +1336,7 @@ try:
                 if (P_DETECT):
                     SERVO_POSITION = move_head(PERSON_POSITION, \
                                                SERVO_POSITION)
+                    ROAM_COUNT = 0
                 else:
                     PERSON_STATE = STATE_LIKELY
             else:
@@ -1324,6 +1346,7 @@ try:
                 if (P_DETECT):
                     SERVO_POSITION = move_head(PERSON_POSITION, \
                                                SERVO_POSITION)
+                    ROAM_COUNT = 0
                     PROBABLE_PERSON += 1
                     if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH \
                         and HIT_COUNT > 5):
@@ -1427,6 +1450,7 @@ try:
                                                SERVO_POSITION)
                 else:
                     PERSON_STATE = STATE_LIKELY
+                    say_goodbye()
 
             PREV_PERSON_STATE = STATE_DETECTED
 
