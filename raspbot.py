@@ -8,15 +8,20 @@
 # edit the /etc/rc.local file using sudo nano /etc/rc.local
 # add these two lines at the end before "exit 0"
 # sudo pigpiod # starts the pigpio daemon
-# sudo python /home/pi/<path>/raspbot.py -nomonitor -roam &
+# sudo python /home/pi/projects_ggg/raspbot/raspbot.py -nomonitor -roam
+# >> /home/pi/projects_ggg/raspbot/raspbot_python.log 2>&1 &
+# The above command will route all regular and error messages to a log file
+# The log file is appended each time, so it can get large and should be
+# deleted every once in a while.
 #
-# The log file created by this program when running independently is
-# located at root (/) about every five minutes the log file is closed
-# and reopened.
+# There is another log file created by this program when running
+# idependently is created in the raspbot directory about every
+# five minutes the log file is closed and reopened. This is probably
+# redundant but it contains more debug info than the python log.
 #
 # !!!!!!!!!!!!!!!!!
-# remember to run this as root "sudo ./raspbot" so that DMA can be used
-# for the servo
+# remember to run this as root "sudo ./raspbot -debug -roam" so that
+# DMA can be used for the servo and the GPIO pins can be used
 # !!!!!!!!!!!!!!!!!
 
 # Jan 2015
@@ -389,13 +394,13 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 
         # randomly select a color and light it up
         if (last_led == 0):
-            lit = LED0_GRN
+            lit = LED0_YEL
         elif (last_led == 1):
-            lit = LED1_GRN
+            lit = LED1_YEL
         elif (last_led == 2):
-            lit = LED2_GRN
+            lit = LED2_YEL
         else:
-            lit = LED3_GRN
+            lit = LED3_YEL
 
         GPIO.output(lit, LED_ON)
 
@@ -425,10 +430,10 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         GPIO.output(LED1_YEL, LED_OFF)
         GPIO.output(LED2_YEL, LED_OFF)
         GPIO.output(LED3_YEL, LED_OFF)
-        GPIO.output(LED0_GRN, LED_ON)
-        GPIO.output(LED1_GRN, LED_ON)
-        GPIO.output(LED2_GRN, LED_ON)
-        GPIO.output(LED3_GRN, LED_ON)
+        GPIO.output(LED0_GRN, LED_OFF)
+        GPIO.output(LED1_GRN, LED_OFF)
+        GPIO.output(LED2_GRN, LED_OFF)
+        GPIO.output(LED3_GRN, LED_OFF)
 
 # Start roaming again if no action
         if roam_cnt >= ROAM_MAX*20:
@@ -519,6 +524,7 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     GPIO.output(LED3_YEL, LED_OFF)
     GPIO.output(LED3_GRN, LED_OFF)
     py_game.quit()
+    PWM.cleanup()
     log_file.write(msg+' @ '+str(datetime.now()))
     log_file.close
     sys.exit()
@@ -599,7 +605,7 @@ PERSON_HIT_COUNT = 4
 PROBABLE_PERSON_THRESH = 3  # used to determine when to say hello
 
 # Logfile
-LOGFILE_NAME = 'raspbot_logfile.txt'
+LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
 
 import RPi.GPIO as GPIO
 GPIO.setwarnings(False) # turn off warnings about DMA channel in use
@@ -607,6 +613,7 @@ GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
 GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
 from RPIO import PWM        # for the servo motor
+PWM.set_log_level(PWM.LOG_LEVEL_ERRORS) # turn off debug msgs
 
 CONNECTED = 0           # true if connected to the internet
 
