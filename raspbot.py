@@ -507,6 +507,8 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     """
     Something bad happend; quit the program
     """
+# doing a print here makes sure that the stdout gets a message
+    print(msg)
     debug_print(msg)
     if SERVO_ENABLED:
         servo_in.stop_servo(SERVO_GPIO_PIN)
@@ -530,6 +532,8 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     sys.exit()
 
 def panic():
+# doing a print here makes sure that the stdout gets a message
+    print('panic!')
     debug_print('Panic!')
     GPIO.output(LED0_GRN, LED_OFF)
     GPIO.output(LED1_GRN, LED_OFF)
@@ -613,7 +617,7 @@ GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
 GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
 from RPIO import PWM        # for the servo motor
-PWM.set_log_level(PWM.LOG_LEVEL_ERRORS) # turn off debug msgs
+PWM.set_loglevel(PWM.LOG_LEVEL_ERRORS) # turn off debug msgs
 
 CONNECTED = 0           # true if connected to the internet
 
@@ -723,20 +727,19 @@ try:
                           +str(SERVO_ENABLED)+' MONITOR: ' \
                           +str(MONITOR)+ \
                           ' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
+# doing a print here makes sure that the stdout gets a message
+    print('Log file name '+str(LOGFILE_NAME)+LOGFILE_OPEN_STRING)
     LOGFILE_HANDLE.write(LOGFILE_OPEN_STRING)
+    print LOGFILE_ARGS_STRING
     LOGFILE_HANDLE.write(LOGFILE_ARGS_STRING)
 
     CPU_TEMP = getCPUtemperature()
     LOGFILE_TEMP_STRING = '\r\nInitial CPU Temperature = '+str(CPU_TEMP)
+    print LOGFILE_TEMP_STRING
     LOGFILE_HANDLE.write(LOGFILE_TEMP_STRING)
         
-    if DEBUG:
-        print 'Opening log file: '+LOGFILE_NAME
-        print 'CPU temperature = '+str(CPU_TEMP)
-
     LOGFILE_HANDLE.write('\r\nPiGPIO version = '+str(PIGPIO_VERSION))
     debug_print('PiGPIO version = '+str(PIGPIO_VERSION))
-
     debug_print('Omron 1 sensor result = '+str(OMRON1_RESULT))
 
 # initialze the music player
@@ -746,36 +749,61 @@ try:
     LED_STATE = True
     GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
     GPIO.output(LED_GPIO_PIN, LED_STATE)
-
     GPIO.setup(LED0_RED, GPIO.OUT)
-    GPIO.output(LED0_RED, LED_ON)
+    GPIO.output(LED0_RED, LED_OFF)
     GPIO.setup(LED0_YEL, GPIO.OUT)
-    GPIO.output(LED0_YEL, LED_ON)
+    GPIO.output(LED0_YEL, LED_OFF)
     GPIO.setup(LED0_GRN, GPIO.OUT)
-    GPIO.output(LED0_GRN, LED_ON)
+    GPIO.output(LED0_GRN, LED_OFF)
     GPIO.setup(LED1_RED, GPIO.OUT)
-    GPIO.output(LED1_RED, LED_ON)
+    GPIO.output(LED1_RED, LED_OFF)
     GPIO.setup(LED1_YEL, GPIO.OUT)
-    GPIO.output(LED1_YEL, LED_ON)
+    GPIO.output(LED1_YEL, LED_OFF)
     GPIO.setup(LED1_GRN, GPIO.OUT)
-    GPIO.output(LED1_GRN, LED_ON)
+    GPIO.output(LED1_GRN, LED_OFF)
     GPIO.setup(LED2_RED, GPIO.OUT)
-    GPIO.output(LED2_RED, LED_ON)
+    GPIO.output(LED2_RED, LED_OFF)
     GPIO.setup(LED2_YEL, GPIO.OUT)
-    GPIO.output(LED2_YEL, LED_ON)
+    GPIO.output(LED2_YEL, LED_OFF)
     GPIO.setup(LED2_GRN, GPIO.OUT)
-    GPIO.output(LED2_GRN, LED_ON)
+    GPIO.output(LED2_GRN, LED_OFF)
     GPIO.setup(LED3_RED, GPIO.OUT)
-    GPIO.output(LED3_RED, LED_ON)
+    GPIO.output(LED3_RED, LED_OFF)
     GPIO.setup(LED3_YEL, GPIO.OUT)
-    GPIO.output(LED3_YEL, LED_ON)
+    GPIO.output(LED3_YEL, LED_OFF)
     GPIO.setup(LED3_GRN, GPIO.OUT)
-    GPIO.output(LED3_GRN, LED_ON)
+    GPIO.output(LED3_GRN, LED_OFF)
 
     if SERVO_ENABLED:
-        print('SERVO is on - you have 20 seconds to calibrate the bot head')
+        debug_print('SERVO is on - you have 20 seconds to calibrate the bot head')
         for g in range(0, 19):
-            print(str(g))
+            debug_print(str(g))
+            if (g % 2):
+                GPIO.output(LED0_RED, LED_ON)
+                GPIO.output(LED0_YEL, LED_ON)
+                GPIO.output(LED0_GRN, LED_ON)
+                GPIO.output(LED3_RED, LED_ON)
+                GPIO.output(LED3_YEL, LED_ON)
+                GPIO.output(LED3_GRN, LED_ON)
+                GPIO.output(LED1_RED, LED_OFF)
+                GPIO.output(LED1_YEL, LED_OFF)
+                GPIO.output(LED1_GRN, LED_OFF)
+                GPIO.output(LED2_RED, LED_OFF)
+                GPIO.output(LED2_YEL, LED_OFF)
+                GPIO.output(LED2_GRN, LED_OFF)
+            else:
+                GPIO.output(LED1_RED, LED_ON)
+                GPIO.output(LED1_YEL, LED_ON)
+                GPIO.output(LED1_GRN, LED_ON)
+                GPIO.output(LED2_RED, LED_ON)
+                GPIO.output(LED2_YEL, LED_ON)
+                GPIO.output(LED2_GRN, LED_ON)
+                GPIO.output(LED0_RED, LED_OFF)
+                GPIO.output(LED0_YEL, LED_OFF)
+                GPIO.output(LED0_GRN, LED_OFF)
+                GPIO.output(LED3_RED, LED_OFF)
+                GPIO.output(LED3_YEL, LED_OFF)
+                GPIO.output(LED3_GRN, LED_OFF)
             time.sleep(1.0)
 
     debug_print('Looking for a person')
@@ -826,11 +854,11 @@ try:
 
     if CONNECTED:
         speakSpeechFromText("Now might be a good time to stand up and stretch", "stretch.mp3")
-        print "Connected to internet"
+        debug_print("Connected to internet")
         LOGFILE_HANDLE.write('\r\nConnected to the Internet')
         play_sound(MAX_VOLUME, "stretch.mp3")
     else:
-        print "Not connected to internet"
+        debug_print("Not connected to internet")
         LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
         
 ###########################
