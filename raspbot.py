@@ -419,6 +419,8 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 # center the servo when roam max is hit
         servo_pos = \
             set_servo_to_position(CTR_SERVO_POSITION)
+
+        time.sleep(0.3)
         if SERVO_ENABLED:
             SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
 
@@ -707,44 +709,6 @@ try:
     PIGPIO_HANDLE = pigpio.pi()              # use defaults
     PIGPIO_VERSION = PIGPIO_HANDLE.get_pigpio_version()
 
-# Initialize the selected Omron sensor
-
-    if DEBUG:
-        print('DEBUG switch is on, initializing Omron sensor...')
-
-    (OMRON1_HANDLE, OMRON1_RESULT) = \
-        omron_init(RASPI_I2C_CHANNEL, OMRON_1, PIGPIO_HANDLE, I2C_BUS)
-
-    if OMRON1_HANDLE < 1:
-        panic()
-
-# Open log file
-
-    LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
-    LOGFILE_OPEN_STRING = '\r\nStartup log file opened at ' \
-                          +str(datetime.now())
-    LOGFILE_ARGS_STRING = '\r\nDEBUG: '+str(DEBUG)+' SERVO: ' \
-                          +str(SERVO_ENABLED)+' MONITOR: ' \
-                          +str(MONITOR)+ \
-                          ' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
-# doing a print here makes sure that the stdout gets a message
-    print('Log file name '+str(LOGFILE_NAME)+LOGFILE_OPEN_STRING)
-    LOGFILE_HANDLE.write(LOGFILE_OPEN_STRING)
-    print LOGFILE_ARGS_STRING
-    LOGFILE_HANDLE.write(LOGFILE_ARGS_STRING)
-
-    CPU_TEMP = getCPUtemperature()
-    LOGFILE_TEMP_STRING = '\r\nInitial CPU Temperature = '+str(CPU_TEMP)
-    print LOGFILE_TEMP_STRING
-    LOGFILE_HANDLE.write(LOGFILE_TEMP_STRING)
-        
-    LOGFILE_HANDLE.write('\r\nPiGPIO version = '+str(PIGPIO_VERSION))
-    debug_print('PiGPIO version = '+str(PIGPIO_VERSION))
-    debug_print('Omron 1 sensor result = '+str(OMRON1_RESULT))
-
-# initialze the music player
-    pygame.mixer.init()
-
 # initialize LEDs
     LED_STATE = True
     GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
@@ -773,6 +737,47 @@ try:
     GPIO.output(LED3_YEL, LED_OFF)
     GPIO.setup(LED3_GRN, GPIO.OUT)
     GPIO.output(LED3_GRN, LED_OFF)
+
+# Initialize the selected Omron sensor
+
+    GPIO.output(LED0_GRN, LED_ON)
+    if DEBUG:
+        print('DEBUG switch is on, initializing Omron sensor...')
+
+    (OMRON1_HANDLE, OMRON1_RESULT) = \
+        omron_init(RASPI_I2C_CHANNEL, OMRON_1, PIGPIO_HANDLE, I2C_BUS)
+
+    if OMRON1_HANDLE < 1:
+        GPIO.output(LED0_GRN, LED_OFF)
+        GPIO.output(LED0_RED, LED_ON)
+        panic()
+
+# Open log file
+
+    LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
+    LOGFILE_OPEN_STRING = '\r\nStartup log file opened at ' \
+                          +str(datetime.now())
+    LOGFILE_ARGS_STRING = '\r\nDEBUG: '+str(DEBUG)+' SERVO: ' \
+                          +str(SERVO_ENABLED)+' MONITOR: ' \
+                          +str(MONITOR)+ \
+                          ' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
+# doing a print here makes sure that the stdout gets a message
+    print('Log file name '+str(LOGFILE_NAME)+LOGFILE_OPEN_STRING)
+    LOGFILE_HANDLE.write(LOGFILE_OPEN_STRING)
+    print LOGFILE_ARGS_STRING
+    LOGFILE_HANDLE.write(LOGFILE_ARGS_STRING)
+
+    CPU_TEMP = getCPUtemperature()
+    LOGFILE_TEMP_STRING = '\r\nInitial CPU Temperature = '+str(CPU_TEMP)
+    print LOGFILE_TEMP_STRING
+    LOGFILE_HANDLE.write(LOGFILE_TEMP_STRING)
+        
+    LOGFILE_HANDLE.write('\r\nPiGPIO version = '+str(PIGPIO_VERSION))
+    debug_print('PiGPIO version = '+str(PIGPIO_VERSION))
+    debug_print('Omron 1 sensor result = '+str(OMRON1_RESULT))
+
+# initialze the music player
+    pygame.mixer.init()
 
     if SERVO_ENABLED:
         debug_print('SERVO is on - you have 20 seconds to calibrate the bot head')
@@ -1504,10 +1509,14 @@ try:
 #############################
 
 except KeyboardInterrupt:
+    print 'Keyboard Interrupt Exception!'
     CRASH_MSG = '\r\nKeyboard interrupt; quitting'
     crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
 
 except IOError:
+    print 'I/O Error Exception!'
+    GPIO.output(LED0_GRN, LED_OFF)
+    GPIO.output(LED0_RED, LED_ON)
     # do not close the logfile here
     # allows the previous logfile to stay intact for a forensic analysis
     debug_print('\r\nI/O Error; quitting')
