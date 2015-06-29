@@ -75,6 +75,39 @@ LED3_GRN = 36   # AKA: BCM GPIO 16
 LED_ON = True
 LED_OFF = False
 
+# all the servo constants
+LOW_TO_HIGH_IS_COUNTERCLOCKWISE = 0
+LOW_TO_HIGH_IS_CLOCKWISE = 1
+HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE
+SERVO_TYPE = LOW_TO_HIGH_IS_COUNTERCLOCKWISE
+CTR_SERVO_POSITION = 1500
+MINIMUM_SERVO_GRANULARITY = 10  # microseconds
+SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
+SERVO_CUR_DIR_CCW = 2
+ROAMING_GRANULARTY = 50
+# Strange things happen: Some servos move CW and others move CCW for the
+# same number. # it is possible that the "front" of the servo might be
+# treated differently and it seams that the colors of the wires on the
+# servo might indicate different servos:
+# brown, red, orange seems to be HIGH_TO_LOW is clockwise
+# (2400 is full CCW and 600 is full CW)
+# black, red, yellos seems to be LOW_TO_HIGH is clockwise
+# (2400 is full CW and 600 is full CCW)
+if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+    MIN_SERVO_POSITION = 2300
+    MAX_SERVO_POSITION = 600
+else:
+    MIN_SERVO_POSITION = 600
+    MAX_SERVO_POSITION = 2300
+
+SERVO_LIMIT_CW = MIN_SERVO_POSITION
+SERVO_LIMIT_CCW = MAX_SERVO_POSITION
+
+MOVE_DIST_CLOSE = 30     
+MOVE_DIST_SHORT = 100      
+MOVE_DIST_MEDIUM = 170       
+MOVE_DIST_FAR = 240       
+
 def get_uptime():
     f = open("/proc/uptime", "r");
     t = float(f.read().split()[0])
@@ -140,51 +173,11 @@ def set_servo_to_position (new_position):
            
         return final_position
 
-# all the servo constants
-LOW_TO_HIGH_IS_COUNTERCLOCKWISE = 0
-LOW_TO_HIGH_IS_CLOCKWISE = 1
-HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE
-SERVO_TYPE = HITEC_HS55
-CTR_SERVO_POSITION = 1500
-MINIMUM_SERVO_GRANULARITY = 10  # microseconds
-SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
-SERVO_CUR_DIR_CCW = 2
-ROAMING_GRANULARTY = 50
-# Strange things happen: Some servos move CW and others move CCW for the
-# same number. # it is possible that the "front" of the servo might be
-# treated differently and it seams that the colors of the wires on the
-# servo might indicate different servos:
-# brown, red, orange seems to be HIGH_TO_LOW is clockwise
-# (2400 is full CCW and 600 is full CW)
-# black, red, yellos seems to be LOW_TO_HIGH is clockwise
-# (2400 is full CW and 600 is full CCW)
-if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-    MIN_SERVO_POSITION = 2300
-    MAX_SERVO_POSITION = 600
-    SERVO_LIMIT_CW = MIN_SERVO_POSITION
-    SERVO_LIMIT_CCW = MAX_SERVO_POSITION
-else:
-    MIN_SERVO_POSITION = 600
-    MAX_SERVO_POSITION = 2300
-    SERVO_LIMIT_CW = MAX_SERVO_POSITION
-    SERVO_LIMIT_CCW = MIN_SERVO_POSITION
-
-MOVE_DIST_CLOSE = 30     
-MOVE_DIST_SHORT = 100      
-MOVE_DIST_MEDIUM = 170       
-MOVE_DIST_FAR = 240       
-
 def resolve_new_position(move_cw, servo_pos, move_distance):
         if (move_cw):
-            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                new_position = servo_pos + move_distance
-            else:
-                new_position = servo_pos - move_distance
+            new_position = servo_pos + move_distance
         else:
-            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                new_position = servo_pos - move_distance
-            else:
-                new_position = servo_pos + move_distance
+            new_position = servo_pos - move_distance
 
         return new_position
     
@@ -307,19 +300,18 @@ def move_head(position, servo_pos):
         PID_CONTROLLER.setPoint(position)
         # process variable is current position
         pid_error = PID_CONTROLLER.update(servo_pos)
+# make the robot turn its head to the person
+# if previous error is the same absolute value as the current error,
+# then we are oscillating - stop it
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            servo_pos += pid_error
+        else:
+            servo_pos -= pid_error
+                           
         debug_print('Des Pos: '+str(position)+ \
                    ' Cur Pos: '+str(servo_pos)+ \
                    ' PID Error: '+str(pid_error))
 
-# make the robot turn its head to the person
-# if previous error is the same absolute value as the current error,
-# then we are oscillating - stop it
-        if abs(pid_error) > MINIMUM_ERROR_GRANULARITY:
-            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                servo_pos += pid_error
-            else:
-                servo_pos -= pid_error
-                           
         new_servo_pos = set_servo_to_position(servo_pos)
 
         #let the temp's settle
@@ -348,20 +340,20 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             if (servo_pos <= SERVO_LIMIT_CCW and \
                 servo_dir == SERVO_CUR_DIR_CCW):
-#                debug_print('CCW -> CW')
+                debug_print('CCW -> CW')
                 servo_dir = SERVO_CUR_DIR_CW
             elif (servo_pos >= SERVO_LIMIT_CW and \
                 servo_dir == SERVO_CUR_DIR_CW):
-#                debug_print('CW -> CCW')
+                debug_print('CW -> CCW')
                 servo_dir = SERVO_CUR_DIR_CCW
         else:
             if (servo_pos >= SERVO_LIMIT_CCW and \
                 servo_dir == SERVO_CUR_DIR_CCW):
-#                debug_print('CCW -> CW')
+                debug_print('CCW -> CW')
                 servo_dir = SERVO_CUR_DIR_CW
             elif (servo_pos <= SERVO_LIMIT_CW and \
                 servo_dir == SERVO_CUR_DIR_CW):
-#                debug_print('CW -> CCW')
+                debug_print('CW -> CCW')
                 servo_dir = SERVO_CUR_DIR_CCW
 
         # determine next servo position    
@@ -674,10 +666,7 @@ HIT_ARRAY = [0]*4
 # initialize the servo to face directly forward
 SERVO_POSITION = CTR_SERVO_POSITION
 # set initial direction
-if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-    SERVO_DIRECTION = SERVO_CUR_DIR_CW
-else:
-    SERVO_DIRECTION = SERVO_CUR_DIR_CCW
+SERVO_DIRECTION = SERVO_CUR_DIR_CW
 
 # Initialize screen
 pygame.init()
