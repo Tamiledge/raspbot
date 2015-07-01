@@ -85,10 +85,9 @@ MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
 ROAMING_GRANULARTY = 50
-# Strange things happen: Some servos move CW and others move CCW for the
-# same number. # it is possible that the "front" of the servo might be
-# treated differently and it seams that the colors of the wires on the
-# servo might indicate different servos:
+# Some servos move CW and others move CCW using the
+# same number. The colors of the wires on the
+# servo seem to indicate different servos:
 # brown, red, orange seems to be HIGH_TO_LOW is clockwise
 # (2400 is full CCW and 600 is full CW)
 # black, red, yellos seems to be LOW_TO_HIGH is clockwise
@@ -170,7 +169,7 @@ def set_servo_to_position (new_position):
 
         debug_print('SERVO_MOVE: '+str(final_position))
         SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, final_position)
-           
+
         return final_position
 
 def resolve_new_position(move_cw, servo_pos, move_distance):
@@ -224,6 +223,71 @@ def person_position_1_hit(hit_array_1, s_position):
         move_cw_1 = False
     elif (hit_array_1[0] >= 1 and hit_array_1[1] >= 1 and \
           hit_array_1[2] >= 1 and hit_array_1[3] == 0):
+        move_dist_1 = MOVE_DIST_CLOSE
+        move_cw_1 = True
+    else:
+        # no person detected
+        person_det_1 = False
+
+    if (move_dist_1 > 0):
+        person_pos_1 = resolve_new_position(move_cw_1, s_position, move_dist_1)
+
+    debug_print('person_position_1: Pos: '+str(person_pos_1)+ \
+                ' Det: '+str(person_det_1))
+
+    return (person_det_1, person_pos_1)
+
+def person_position_x_hit(hit_array_1, s_position):
+    """
+    Detect a persons presence using "one side is greater than the other algorithm"
+    returns (TRUE if person detected, approximate person position)
+    """
+    person_det_1 = True
+    person_pos_1 = s_position
+    move_dist_1 = 0
+    move_cw_1 = True
+
+    if (hit_array_1[1] > hit_array_1[0] and hit_array_1[2] > hit_array_1[3]):
+        # person is centered
+        move_dist_1 = 0
+    elif (hit_array_1[0] > hit_array_1[1] and \
+          hit_array_1[0] > hit_array_1[2] and \
+          hit_array_1[0] > hit_array_1[3]):
+        move_dist_1 = MOVE_DIST_FAR
+        move_cw_1 = False
+    elif (hit_array_1[1] > hit_array_1[0] and \
+          hit_array_1[1] > hit_array_1[2] and \
+          hit_array_1[1] > hit_array_1[3]):
+        move_dist_1 = MOVE_DIST_SHORT
+        move_cw_1 = False
+    elif (hit_array_1[2] > hit_array_1[0] and \
+          hit_array_1[2] > hit_array_1[1] and \
+          hit_array_1[2] > hit_array_1[3]):
+        move_dist_1 = MOVE_DIST_SHORT
+        move_cw_1 = True
+    elif (hit_array_1[3] > hit_array_1[0] and \
+          hit_array_1[3] > hit_array_1[1] and \
+          hit_array_1[3] > hit_array_1[2]):
+        move_dist_1 = MOVE_DIST_FAR
+        move_cw_1 = True
+    elif (hit_array_1[0] == hit_array_1[1] and \
+          hit_array_1[0] > hit_array_1[2] and \
+          hit_array_1[0] > hit_array_1[3]):
+        move_dist_1 = MOVE_DIST_MEDIUM
+        move_cw_1 = False
+    elif (hit_array_1[2] == hit_array_1[3] and \
+          hit_array_1[2] > hit_array_1[1] and \
+          hit_array_1[2] > hit_array_1[0]):
+        move_dist_1 = MOVE_DIST_MEDIUM
+        move_cw_1 = True
+    elif (hit_array_1[0] == hit_array_1[1] and \
+          hit_array_1[0] == hit_array_1[2] and \
+          hit_array_1[0] > hit_array_1[3]):
+        move_dist_1 = MOVE_DIST_CLOSE
+        move_cw_1 = False
+    elif (hit_array_1[3] == hit_array_1[2] and \
+          hit_array_1[3] == hit_array_1[1] and \
+          hit_array_1[3] > hit_array_1[0]):
         move_dist_1 = MOVE_DIST_CLOSE
         move_cw_1 = True
     else:
@@ -294,6 +358,7 @@ def move_head(position, servo_pos):
     """
     Move the robot head to a specific position
     """
+    debug_print('Org Pos: '+str(servo_pos))
     if SERVO_ENABLED:
 # face the servo twoards the heat
         # setpoint is the desired position
@@ -303,17 +368,19 @@ def move_head(position, servo_pos):
 # make the robot turn its head to the person
 # if previous error is the same absolute value as the current error,
 # then we are oscillating - stop it
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            servo_pos += pid_error
-        else:
-            servo_pos -= pid_error
+##        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+        servo_pos += pid_error
+##        else:
+##            servo_pos -= pid_error
                            
         debug_print('Des Pos: '+str(position)+ \
-                   ' Cur Pos: '+str(servo_pos)+ \
+                   ' New Pos: '+str(servo_pos)+ \
                    ' PID Error: '+str(pid_error))
 
         new_servo_pos = set_servo_to_position(servo_pos)
 
+        debug_print('New Pos: '+str(new_servo_pos))
+        
         #let the temp's settle
         time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)
 
@@ -412,9 +479,9 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         servo_pos = \
             set_servo_to_position(CTR_SERVO_POSITION)
 
-        time.sleep(0.3)
-        if SERVO_ENABLED:
-            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
+##        time.sleep(0.3)
+##        if SERVO_ENABLED:
+##            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
 
         GPIO.output(LED0_RED, LED_OFF)
         GPIO.output(LED1_RED, LED_OFF)
@@ -589,7 +656,7 @@ BURN_HAZARD_TEMP = 100  # temperature at which a warning is given
 BURN_HAZARD_CNT = 0     # number of times burn hazard detected
 BURN_HAZARD_HIT = 10    # Number used in Hit array to indicate hazard
 TEMPMARGIN = 5          # degrees > than room temp to detect person
-PERSON_TEMP_THRESHOLD = 79  # degrees fahrenheit
+PERSON_TEMP_THRESHOLD = 99  # degrees fahrenheit
 MONITOR = 1             # assume a monitor is attached
 # Servo positions
 # Weirdness factor: Some servo's I used go in the reverse direction
@@ -764,6 +831,7 @@ try:
     LOGFILE_HANDLE.write('\r\nPiGPIO version = '+str(PIGPIO_VERSION))
     debug_print('PiGPIO version = '+str(PIGPIO_VERSION))
     debug_print('Omron 1 sensor result = '+str(OMRON1_RESULT))
+    debug_print('Max CW: '+str(SERVO_LIMIT_CW)+' Max CCW: '+str(SERVO_LIMIT_CCW))
 
 # initialze the music player
     pygame.mixer.init()
@@ -1039,6 +1107,8 @@ try:
                 +str(BYTES_READ))
             panic()
 
+        PERSON_TEMP_THRESHOLD = ROOM_TEMP + TEMPMARGIN
+
         if MONITOR:
 # create the IR pixels
             for i in range(0, OMRON_DATA_LIST):
@@ -1289,7 +1359,7 @@ try:
                 PERSON_STATE = STATE_NOTHING
             elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
                 P_DETECT, PERSON_POSITION = \
-                    person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
+                    person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                 # stay in possible state
                 if (P_DETECT):
                     POSSIBLE_PERSON += 1
@@ -1329,7 +1399,7 @@ try:
                 PERSON_STATE = STATE_NOTHING
             else:
                 P_DETECT, PERSON_POSITION = \
-                          person_position_2_hit(HIT_ARRAY, \
+                          person_position_x_hit(HIT_ARRAY, \
                                                 SERVO_POSITION)
                 if (not P_DETECT):
                     PERSON_STATE = STATE_POSSIBLE
@@ -1360,7 +1430,7 @@ try:
                 PERSON_STATE = STATE_LIKELY
             elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
                 P_DETECT, PERSON_POSITION = \
-                    person_position_1_hit(HIT_ARRAY, \
+                    person_position_x_hit(HIT_ARRAY, \
                                           SERVO_POSITION)
                 if (P_DETECT):
                     SERVO_POSITION = move_head(PERSON_POSITION, \
@@ -1370,7 +1440,7 @@ try:
                     PERSON_STATE = STATE_LIKELY
             else:
                 P_DETECT, PERSON_POSITION = \
-                          person_position_2_hit(HIT_ARRAY, \
+                          person_position_x_hit(HIT_ARRAY, \
                                                 SERVO_POSITION)
                 if (P_DETECT):
                     SERVO_POSITION = move_head(PERSON_POSITION, \
@@ -1472,7 +1542,7 @@ try:
 # hit count needs to be above PERSON_HIT_COUNT to validate a person
             else:
                 P_DETECT, PERSON_POSITION = \
-                          person_position_2_hit(HIT_ARRAY, \
+                          person_position_x_hit(HIT_ARRAY, \
                                                 SERVO_POSITION)
                 if (P_DETECT):
                     SERVO_POSITION = move_head(PERSON_POSITION, \
