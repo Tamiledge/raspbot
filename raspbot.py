@@ -42,6 +42,14 @@ from omron_src import omron_read    # contains omron functions
 from pid import PID
 from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb, speakSpeechFromText
 
+import numpy as np
+from numpy import convolve
+ 
+def movingaverage (values, window):
+    weights = np.repeat(1.0, window)/window
+    sma = np.convolve(values, weights, 'valid')
+    return sma
+ 
 # GPIO assignments for the hit LEDs (three colors, red, yellow, green)
 #   red = burn hazard (hit_array[x] > 4
 #   yellow = possible person (hit_array[x] == 1
@@ -368,10 +376,10 @@ def move_head(position, servo_pos):
 # make the robot turn its head to the person
 # if previous error is the same absolute value as the current error,
 # then we are oscillating - stop it
-##        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-        servo_pos += pid_error
-##        else:
-##            servo_pos -= pid_error
+        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+            servo_pos += pid_error
+        else:
+            servo_pos -= pid_error
                            
         debug_print('Des Pos: '+str(position)+ \
                    ' New Pos: '+str(servo_pos)+ \
@@ -629,6 +637,28 @@ def panic():
                     crash_and_burn(CRASH_MSG, pygame, \
                                    SERVO_HANDLE, LOGFILE_HANDLE)
 
+HAMA_SIZE = 4
+HIT_ARRAY_MA0 = [0]*HAMA_SIZE
+HIT_ARRAY_MA1 = [0]*HAMA_SIZE
+HIT_ARRAY_MA2 = [0]*HAMA_SIZE
+HIT_ARRAY_MA3 = [0]*HAMA_SIZE
+HMA_I0 = 0
+HMA_I1 = 0
+HMA_I2 = 0
+HMA_I3 = 0
+
+def hstack_push(array, element):
+    """
+    This function pushes an element in to the proper
+    position in the hit array moving average stack array
+    """
+    new_array = [0]*HAMA_SIZE
+    for ei in range(HAMA_SIZE-1, 0, -1):
+        new_array[ei] = array[ei-1]
+#        print 'new_array['+str(ei)+'] = array['+str(ei-1)+']'
+    new_array[0] = element                  # enter new data
+#    print 'new_array[0] = '+str(element)
+    return new_array    
 
 # Constants
 RASPI_I2C_CHANNEL = 1       # the /dev/i2c device
@@ -658,6 +688,8 @@ BURN_HAZARD_HIT = 10    # Number used in Hit array to indicate hazard
 TEMPMARGIN = 5          # degrees > than room temp to detect person
 PERSON_TEMP_THRESHOLD = 99  # degrees fahrenheit
 MONITOR = 1             # assume a monitor is attached
+CALIBRATION = 0         # don't perform calibration cycle
+
 # Servo positions
 # Weirdness factor: Some servo's I used go in the reverse direction
 # from other servos. Therefore, this next constant is used to change the
@@ -692,6 +724,9 @@ CONNECTED = 0           # true if connected to the internet
 if "-debug" in sys.argv:
     DEBUG = 1         # set this to 1 to see debug messages on monitor
 
+if "-cal" in sys.argv:
+    CALIBRATION = 1
+
 if "-noservo" in sys.argv:
     SERVO_ENABLED = 0         # assume using servo is default
 
@@ -707,6 +742,7 @@ if "-rand" in sys.argv:
 if "-help" in sys.argv:
     print 'IMPORTANT: run as superuser (sudo) to allow DMA access'
     print '-debug:   print debug info to console'
+    print '-cal      run with the calibration delay'
     print '-nomonitor run without producing the pygame temp display'
     print '-noservo: do not use the servo motor'
     print '-roam:    when no person turn head slowly 180 degrees'
@@ -836,7 +872,7 @@ try:
 # initialze the music player
     pygame.mixer.init()
 
-    if SERVO_ENABLED:
+    if CALIBRATION:
         debug_print('SERVO is on - you have 20 seconds to calibrate the bot head')
         for g in range(0, 19):
             debug_print(str(g))
@@ -1010,6 +1046,8 @@ try:
 #############################
 # Main while loop
 #############################
+    SAID_HELLO = 0
+    SAID_GOODBYE = 1
     MAIN_LOOP_COUNT = 0
     while True:                 # The main loop
         MAIN_LOOP_COUNT += 1
@@ -1179,7 +1217,24 @@ try:
                      HIT_ARRAY_TEMP[6]+HIT_ARRAY_TEMP[7] 
         # far right column
         HIT_ARRAY[3] = HIT_ARRAY_TEMP[0]+HIT_ARRAY_TEMP[1]+ \
-                     HIT_ARRAY_TEMP[2]+HIT_ARRAY_TEMP[3] 
+                     HIT_ARRAY_TEMP[2]+HIT_ARRAY_TEMP[3]
+
+# use a moving average so that variations in sensor data are deadened
+
+# save new hit array to the moving average arrays
+        HIT_ARRAY_MA0 = hstack_push(HIT_ARRAY_MA0, HIT_ARRAY[0])
+#        print HIT_ARRAY_MA0
+        HIT_ARRAY_MA1 = hstack_push(HIT_ARRAY_MA1, HIT_ARRAY[1])
+#        print HIT_ARRAY_MA1
+        HIT_ARRAY_MA2 = hstack_push(HIT_ARRAY_MA2, HIT_ARRAY[2])
+#        print HIT_ARRAY_MA2
+        HIT_ARRAY_MA3 = hstack_push(HIT_ARRAY_MA3, HIT_ARRAY[3])
+#        print HIT_ARRAY_MA3
+
+        HIT_ARRAY[0] = int(round(movingaverage(HIT_ARRAY_MA0,HAMA_SIZE)))
+        HIT_ARRAY[1] = int(round(movingaverage(HIT_ARRAY_MA1,HAMA_SIZE)))
+        HIT_ARRAY[2] = int(round(movingaverage(HIT_ARRAY_MA2,HAMA_SIZE)))
+        HIT_ARRAY[3] = int(round(movingaverage(HIT_ARRAY_MA3,HAMA_SIZE)))
 
         GPIO.output(LED0_RED, LED_OFF)
         GPIO.output(LED0_YEL, LED_OFF)
@@ -1355,24 +1410,26 @@ try:
             debug_print('STATE: POSSIBLE: Possible Person cnt: ' \
                        +str(POSSIBLE_PERSON))
             NO_PERSON_COUNT += 1
-            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                PERSON_STATE = STATE_NOTHING
-            elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
-                P_DETECT, PERSON_POSITION = \
-                    person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
-                # stay in possible state
-                if (P_DETECT):
-                    POSSIBLE_PERSON += 1
-                    if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
-                        POSSIBLE_PERSON = 0
-                        SERVO_POSITION = \
-                            move_head(PERSON_POSITION, \
-                                      SERVO_POSITION)
-                        ROAM_COUNT = 0
-                else:
-                    PERSON_STATE = STATE_NOTHING
-            else:
+
+            P_DETECT, PERSON_POSITION = \
+                person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
+            # stay in possible state
+            if (P_DETECT):
+                POSSIBLE_PERSON += 1
+                if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
+                    POSSIBLE_PERSON = 0
+                    SERVO_POSITION = \
+                        move_head(PERSON_POSITION, \
+                                  SERVO_POSITION)
+                    ROAM_COUNT = 0
                 PERSON_STATE = STATE_LIKELY
+            else:
+                if (SAID_HELLO == 1):
+                    say_goodbye()
+                    SAID_GOODBYE = 1
+                    SAID_HELLO = 0
+                    
+                PERSON_STATE = STATE_NOTHING
 
             (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
              LAST_KNOWN_LED_POS, LIT_LED) = \
@@ -1395,22 +1452,18 @@ try:
                         +str(NO_PERSON_COUNT))
             POSSIBLE_PERSON = 0
             NO_PERSON_COUNT += 1
-            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                PERSON_STATE = STATE_NOTHING
+
+            P_DETECT, PERSON_POSITION = \
+                      person_position_2_hit(HIT_ARRAY, \
+                                            SERVO_POSITION)
+            if (P_DETECT):
+                SERVO_POSITION = move_head(PERSON_POSITION, \
+                                           SERVO_POSITION)
+                ROAM_COUNT = 0
+                PERSON_STATE = STATE_PROBABLE
             else:
-                P_DETECT, PERSON_POSITION = \
-                          person_position_x_hit(HIT_ARRAY, \
-                                                SERVO_POSITION)
-                if (not P_DETECT):
-                    PERSON_STATE = STATE_POSSIBLE
-                else:
-                    SERVO_POSITION = move_head(PERSON_POSITION, \
-                                               SERVO_POSITION)
-                    ROAM_COUNT = 0
+                PERSON_STATE = STATE_POSSIBLE
                     
-                if (HIT_COUNT > PERSON_HIT_COUNT):
-                    PERSON_STATE = STATE_PROBABLE
-            
             PREV_PERSON_STATE = STATE_LIKELY
 
 ###########################
@@ -1426,38 +1479,29 @@ try:
             POSSIBLE_PERSON = 0
             debug_print('STATE: PROBABLE: Probable Person cnt: ' \
                         +str(PROBABLE_PERSON))
-            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                PERSON_STATE = STATE_LIKELY
-            elif (HIT_COUNT == 1 and PREVIOUS_HIT_COUNT >= 1):
-                P_DETECT, PERSON_POSITION = \
-                    person_position_x_hit(HIT_ARRAY, \
-                                          SERVO_POSITION)
-                if (P_DETECT):
-                    SERVO_POSITION = move_head(PERSON_POSITION, \
-                                               SERVO_POSITION)
-                    ROAM_COUNT = 0
-                else:
-                    PERSON_STATE = STATE_LIKELY
-            else:
-                P_DETECT, PERSON_POSITION = \
-                          person_position_x_hit(HIT_ARRAY, \
-                                                SERVO_POSITION)
-                if (P_DETECT):
-                    SERVO_POSITION = move_head(PERSON_POSITION, \
-                                               SERVO_POSITION)
-                    ROAM_COUNT = 0
-                    PROBABLE_PERSON += 1
-                    if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH \
-                        and HIT_COUNT > 5):
+
+            P_DETECT, PERSON_POSITION = \
+                      person_position_2_hit(HIT_ARRAY, \
+                                            SERVO_POSITION)
+            if (P_DETECT):
+                SERVO_POSITION = move_head(PERSON_POSITION, \
+                                           SERVO_POSITION)
+                ROAM_COUNT = 0
+                PROBABLE_PERSON += 1
+                if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH \
+                    and HIT_COUNT > 5):
+                    if (SAID_GOODBYE == 1):
                         say_hello()
-                        detected_time_stamp = get_uptime()
-                        debug_print('Person detected at '+str(detected_time_stamp))
-                        PERSON_STATE = STATE_DETECTED
-                        PROBABLE_PERSON = 0
-                    else:
-                        PERSON_STATE = STATE_PROBABLE
+                        SAID_HELLO = 1
+                        SAID_GOODBYE = 0
+                    detected_time_stamp = get_uptime()
+                    debug_print('Person detected at '+str(detected_time_stamp))
+                    PERSON_STATE = STATE_DETECTED
+                    PROBABLE_PERSON = 0
                 else:
-                    PERSON_STATE = STATE_LIKELY
+                    PERSON_STATE = STATE_PROBABLE
+            else:
+                PERSON_STATE = STATE_LIKELY
 
             PREV_PERSON_STATE = STATE_PROBABLE
 
@@ -1532,24 +1576,15 @@ try:
                     GPIO.output(LED3_GRN, LED_OFF)
                     time.sleep(0.3)
 
-            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                say_goodbye()
-                PERSON_STATE = STATE_NOTHING
-            elif (HIT_COUNT >= 1 and \
-                  HIT_COUNT <= PERSON_HIT_COUNT ):
-                say_goodbye()
-                PERSON_STATE = STATE_POSSIBLE
-# hit count needs to be above PERSON_HIT_COUNT to validate a person
+            P_DETECT, PERSON_POSITION = \
+                      person_position_2_hit(HIT_ARRAY, \
+                                            SERVO_POSITION)
+            if (P_DETECT):
+                SERVO_POSITION = move_head(PERSON_POSITION, \
+                                           SERVO_POSITION)
+                PERSON_STATE = STATE_DETECTED
             else:
-                P_DETECT, PERSON_POSITION = \
-                          person_position_x_hit(HIT_ARRAY, \
-                                                SERVO_POSITION)
-                if (P_DETECT):
-                    SERVO_POSITION = move_head(PERSON_POSITION, \
-                                               SERVO_POSITION)
-                else:
-                    PERSON_STATE = STATE_LIKELY
-                    say_goodbye()
+                PERSON_STATE = STATE_PROBABLE
 
             PREV_PERSON_STATE = STATE_DETECTED
 
