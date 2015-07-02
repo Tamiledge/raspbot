@@ -553,8 +553,8 @@ def say_goodbye():
 
 # Play "bye bye" sound effect
     #byebye_message = random.choice(BYEBYE_FILE_NAME)
-    debug_print('Playing badge audio')
-    play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+##    debug_print('Playing badge audio')
+##    play_sound(MAX_VOLUME, BADGE_FILE_NAME)
 
     debug_print('Playing good bye audio')
     play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
@@ -637,7 +637,7 @@ def panic():
                     crash_and_burn(CRASH_MSG, pygame, \
                                    SERVO_HANDLE, LOGFILE_HANDLE)
 
-HAMA_SIZE = 4
+HAMA_SIZE = 3                   # the number of measurements to average
 HIT_ARRAY_MA0 = [0]*HAMA_SIZE
 HIT_ARRAY_MA1 = [0]*HAMA_SIZE
 HIT_ARRAY_MA2 = [0]*HAMA_SIZE
@@ -1048,6 +1048,12 @@ try:
 #############################
     SAID_HELLO = 0
     SAID_GOODBYE = 1
+    STATE_POSSIBLE_COUNT = 0
+    STATE_LIKELY_COUNT = 0
+    STATE_PROBABLE_COUNT = 0
+    STATE_DETECTED_COUNT = 0
+    STATE_COUNT_LIMIT = 5
+    
     MAIN_LOOP_COUNT = 0
     while True:                 # The main loop
         MAIN_LOOP_COUNT += 1
@@ -1367,9 +1373,15 @@ try:
 #     Event 1: One or more sensors cross the person threshold
 #
         elif (PERSON_STATE == STATE_NOTHING):
+            STATE_POSSIBLE_COUNT = 0
+            STATE_LIKELY_COUNT = 0
+            STATE_PROBABLE_COUNT = 0
+            STATE_DETECTED_COUNT = 0
             debug_print('STATE: NOTHING: No Person cnt: ' \
                        +str(NO_PERSON_COUNT)+' ROAM_COUNT = ' \
-                       +str(ROAM_COUNT))
+                       +str(ROAM_COUNT)+' Hit Cnt = ' \
+                       +str(HIT_COUNT)+' Prev Hit Cnt = ' \
+                       +str(PREVIOUS_HIT_COUNT))
             NO_PERSON_COUNT += 1
             P_DETECT_COUNT = 0
             POSSIBLE_PERSON = 0
@@ -1385,16 +1397,22 @@ try:
                 SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
 # update the screen
                 pygame.display.update()
-            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                PERSON_STATE = STATE_NOTHING
-            else:
-                PERSON_STATE = STATE_POSSIBLE
 
             (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
              LAST_KNOWN_LED_POS, LIT_LED) = \
             servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
                        LAST_KNOWN_LED_POS, LIT_LED)
-            
+# need two hits in a row                 
+            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
+                PERSON_STATE = STATE_NOTHING
+            else:
+                if (PREV_PERSON_STATE == STATE_POSSIBLE):
+# reset the servo position if hits and we just came from possible
+                    servo_pos = \
+                        set_servo_to_position(CTR_SERVO_POSITION)
+                else:
+                    PERSON_STATE = STATE_POSSIBLE
+
             PREV_PERSON_STATE = STATE_NOTHING
                 
 ###########################
@@ -1407,6 +1425,7 @@ try:
 #
         elif (PERSON_STATE == STATE_POSSIBLE):
             BURN_HAZARD_CNT = 0
+            STATE_POSSIBLE_COUNT += 1
             debug_print('STATE: POSSIBLE: Possible Person cnt: ' \
                        +str(POSSIBLE_PERSON))
             NO_PERSON_COUNT += 1
@@ -1416,26 +1435,26 @@ try:
             # stay in possible state
             if (P_DETECT):
                 POSSIBLE_PERSON += 1
-                if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
-                    POSSIBLE_PERSON = 0
-                    SERVO_POSITION = \
-                        move_head(PERSON_POSITION, \
-                                  SERVO_POSITION)
-                    ROAM_COUNT = 0
-                PERSON_STATE = STATE_LIKELY
+#                if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
+                POSSIBLE_PERSON = 0
+                SERVO_POSITION = \
+                    move_head(PERSON_POSITION, \
+                              SERVO_POSITION)
+                ROAM_COUNT = 0
+                debug_print('STATE POSSIBLE cnt: ' \
+                           +str(STATE_POSSIBLE_COUNT))
+                if (STATE_POSSIBLE_COUNT > STATE_COUNT_LIMIT):
+                    PERSON_STATE = STATE_NOTHING
+                else:
+                    PERSON_STATE = STATE_LIKELY
             else:
-                if (SAID_HELLO == 1):
+                if (SAID_HELLO == 1 and SAID_GOODBYE == 0):
                     say_goodbye()
                     SAID_GOODBYE = 1
                     SAID_HELLO = 0
                     
                 PERSON_STATE = STATE_NOTHING
 
-            (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
-             LAST_KNOWN_LED_POS, LIT_LED) = \
-            servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
-                       LAST_KNOWN_LED_POS, LIT_LED)
-            
             PREV_PERSON_STATE = STATE_POSSIBLE
             
 ###########################
@@ -1448,6 +1467,7 @@ try:
 #
         elif (PERSON_STATE == STATE_LIKELY):
             BURN_HAZARD_CNT = 0
+            STATE_LIKELY_COUNT += 1
             debug_print('STATE: LIKELY: No Person cnt: ' \
                         +str(NO_PERSON_COUNT))
             POSSIBLE_PERSON = 0
@@ -1460,7 +1480,12 @@ try:
                 SERVO_POSITION = move_head(PERSON_POSITION, \
                                            SERVO_POSITION)
                 ROAM_COUNT = 0
-                PERSON_STATE = STATE_PROBABLE
+                debug_print('STATE LIKELY cnt: ' \
+                           +str(STATE_LIKELY_COUNT))
+                if (STATE_LIKELY_COUNT > STATE_COUNT_LIMIT):
+                    PERSON_STATE = STATE_POSSIBLE
+                else:
+                    PERSON_STATE = STATE_PROBABLE
             else:
                 PERSON_STATE = STATE_POSSIBLE
                     
@@ -1477,6 +1502,7 @@ try:
         elif (PERSON_STATE == STATE_PROBABLE):
             BURN_HAZARD_CNT = 0
             POSSIBLE_PERSON = 0
+            STATE_PROBABLE_COUNT += 1
             debug_print('STATE: PROBABLE: Probable Person cnt: ' \
                         +str(PROBABLE_PERSON))
 
@@ -1490,7 +1516,7 @@ try:
                 PROBABLE_PERSON += 1
                 if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH \
                     and HIT_COUNT > 5):
-                    if (SAID_GOODBYE == 1):
+                    if (SAID_GOODBYE == 1 and SAID_HELLO == 0):
                         say_hello()
                         SAID_HELLO = 1
                         SAID_GOODBYE = 0
@@ -1499,7 +1525,10 @@ try:
                     PERSON_STATE = STATE_DETECTED
                     PROBABLE_PERSON = 0
                 else:
-                    PERSON_STATE = STATE_PROBABLE
+                    if (STATE_PROBABLE_COUNT > STATE_COUNT_LIMIT):
+                        PERSON_STATE = STATE_LIKELY
+                    else:
+                        PERSON_STATE = STATE_PROBABLE
             else:
                 PERSON_STATE = STATE_LIKELY
 
@@ -1515,6 +1544,10 @@ try:
 #     
         elif (PERSON_STATE == STATE_DETECTED):
             BURN_HAZARD_CNT = 0
+            STATE_POSSIBLE_COUNT = 0
+            STATE_LIKELY_COUNT = 0
+            STATE_PROBABLE_COUNT = 0
+            STATE_DETECTED_COUNT += 1
             debug_print('STATE: DETECTED: detect cnt: ' \
                        +str(P_DETECT_COUNT))
             ROAM_COUNT = 0
