@@ -50,6 +50,8 @@ def movingaverage (values, window):
     sma = np.convolve(values, weights, 'valid')
     return sma
  
+# all the LED constants
+
 # GPIO assignments for the hit LEDs (three colors, red, yellow, green)
 #   red = burn hazard (hit_array[x] > 4
 #   yellow = possible person (hit_array[x] == 1
@@ -82,17 +84,36 @@ LED3_GRN = 36   # AKA: BCM GPIO 16
 
 LED_ON = True
 LED_OFF = False
+LAST_KNOWN_LED_POS = 0  # counter keeps track of which LED to light
+LED_POS_MAX = 4
+LIT_LED = LED0_RED
+LED_GPIO_PIN = 7    # GPIO number that the LED is connected to
+                    # (BCM GPIO_04 (Pi Hat) is the same as BOARD pin 7)
+                    # See "Raspberry Pi B+ J8 Header" diagram
+LED_STATE = True    # this is the LED in the speaker head mouth
 
 # all the servo constants
 LOW_TO_HIGH_IS_COUNTERCLOCKWISE = 0
 LOW_TO_HIGH_IS_CLOCKWISE = 1
-HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE
-SERVO_TYPE = LOW_TO_HIGH_IS_COUNTERCLOCKWISE
 CTR_SERVO_POSITION = 1500
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
-ROAMING_GRANULARTY = 50
+ROAMING_GRANULARTY = 20
+MOVE_DIST_CLOSE = 70     
+MOVE_DIST_SHORT = 100      
+MOVE_DIST_MEDIUM = 170       
+MOVE_DIST_FAR = 240       
+SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
+SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
+ROAM_MAX = 600          # Max number of times to roam between person
+                        # detections (roughly 0.5 seconds between roams
+ROAM_COUNT = 0 # keep track of head roams so that we can turn it off
+# initialize the servo to face directly forward
+SERVO_POSITION = CTR_SERVO_POSITION
+# set initial direction
+SERVO_DIRECTION = SERVO_CUR_DIR_CW
+
 # Some servos move CW and others move CCW using the
 # same number. The colors of the wires on the
 # servo seem to indicate different servos:
@@ -100,6 +121,11 @@ ROAMING_GRANULARTY = 50
 # (2400 is full CCW and 600 is full CW)
 # black, red, yellos seems to be LOW_TO_HIGH is clockwise
 # (2400 is full CW and 600 is full CCW)
+HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE   # Yellow, Red, Black wires
+FITECH_MICRO_SERVO_FS90 = LOW_TO_HIGH_IS_COUNTERCLOCKWISE   # org, red, brn
+
+SERVO_TYPE = FITECH_MICRO_SERVO_FS90
+
 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
     MIN_SERVO_POSITION = 2300
     MAX_SERVO_POSITION = 600
@@ -110,12 +136,129 @@ else:
 SERVO_LIMIT_CW = MIN_SERVO_POSITION
 SERVO_LIMIT_CCW = MAX_SERVO_POSITION
 
-MOVE_DIST_CLOSE = 30     
-MOVE_DIST_SHORT = 100      
-MOVE_DIST_MEDIUM = 170       
-MOVE_DIST_FAR = 240       
+# all the hit array constants
+# HAMA = Hit Array Moving Average
+HAMA_SIZE = 3                   # the number of measurements to average
+                                # this affects how slowly a person is detected
+                                # the bigger the number, the slower it works
+                                # but it also takes out noise blips and variability
+                                # in the sensor
+HIT_ARRAY_MA0 = [0]*HAMA_SIZE
+HIT_ARRAY_MA1 = [0]*HAMA_SIZE
+HIT_ARRAY_MA2 = [0]*HAMA_SIZE
+HIT_ARRAY_MA3 = [0]*HAMA_SIZE
+HMA_I0 = 0
+HMA_I1 = 0
+HMA_I2 = 0
+HMA_I3 = 0
 
+# Command line argument constants
+DEBUG = 0           # set this to 1 to see debug messages on monitor
+ROAM = 0                # if true, robot will look for a heat signature
+RAND = 0                # Causes random head movement when idle
+MONITOR = 1             # assume a monitor is attached
+CALIBRATION = 0         # don't perform calibration cycle
+
+# Omron constants
+RASPI_I2C_CHANNEL = 1       # the /dev/i2c device
+OMRON_1 = 0x0a              # 7 bit I2C address of Omron Sensor D6T-44L
+OMRON_BUFFER_LENGTH = 35    # Omron data buffer size
+OMRON_DATA_LIST = 16        # Omron data array - sixteen 16 bit words
+MEASUREMENT_WAIT_PERIOD = 0.5   # time between Omron measurements
+OMRON_ERROR_COUNT = 0
+OMRON_READ_COUNT = 0
+
+# Audio constants
+MAX_VOLUME = 1.0            # maximum speaker volume for pygame.mixer
+
+# Temperature constants
+DEGREE_UNIT = 'F'           # F = Farenheit, C=Celcius
+MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
+MAX_TEMP = 200          # maximum expected temperature in Fahrenheit
+BURN_HAZARD_TEMP = 100  # temperature at which a warning is given
+BURN_HAZARD_CNT = 0     # number of times burn hazard detected
+BURN_HAZARD_HIT = 10    # Number used in Hit array to indicate hazard
+TEMPMARGIN = 4          # degrees > than room temp to detect person
+PERSON_TEMP_THRESHOLD = 99  # degrees fahrenheit
+TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST # holds the recently measured temperature
+
+# Screen constants
+SCREEN_DIMENSIONS = [400, 600]  # setup IR window [0]= width [1]= height
+# QUADRANT of the display (x, y, width, height)
+QUADRANT = [Rect]*OMRON_DATA_LIST
+CENTER = [(0, 0)]*OMRON_DATA_LIST      # center of each QUADRANT
+PX = [0]*4
+PY = [0]*4
+
+# person detecting constants
+PROBABLE_PERSON_THRESH = 3  # used to determine when to say hello
+PREVIOUS_HIT_COUNT = 0
+HIT_COUNT = 0
+HIT_ARRAY_TEMP = [0]*OMRON_DATA_LIST
+HIT_ARRAY = [0]*4
+NO_PERSON_COUNT = 0
+P_DETECT = False
+P_DETECT_COUNT = 0
+
+# log file constants
+LOG_MAX = 1200          # number of times through the main while loop
+LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
+
+# audio constants
+HELLO_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
+AFTER_HELLO_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/girl-sorry.mp3"
+GOODBYE_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.mp3"
+BADGE_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
+BURN_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/girl-warning.mp3"
+STRETCH_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/stretch.mp3"                      
+CPU_105_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/girl-105a.mp3"
+CPU_110_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/girl-110a.mp3"
+CPU_115_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/girl-115a.mp3"
+CPU_120_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/girl-120a.mp3"
+CPU_125_FILE_NAME = \
+    "/home/pi/projects_ggg/raspbot/snd/girl-125a.mp3"
+SAID_HELLO = 0
+SAID_GOODBYE = 1
+EXERSIZE_TIMEOUT = 1200   # seconds between exersize reminders
+EXERSIZE_TIMEOUT_BLINKS = 10    # number of times to blink LEDs
+                                # each blink takes 2 seconds
+
+# state machine constants
+STATE_NOTHING = 0
+STATE_POSSIBLE = 1
+STATE_LIKELY = 2
+STATE_PROBABLE = 3
+STATE_DETECTED = 4
+STATE_BURN = 5
+PERSON_STATE = STATE_NOTHING
+PREV_PERSON_STATE = STATE_NOTHING
+PROBABLE_PERSON = 0
+STATE_POSSIBLE_COUNT = 0
+STATE_LIKELY_COUNT = 0
+STATE_PROBABLE_COUNT = 0
+STATE_DETECTED_COUNT = 0
+STATE_COUNT_LIMIT = 5
+
+# Miscellaneous constants
+CONNECTED = 0           # true if connected to the internet
+CPU_105_ON = False      # the CPU can reach 105 easily
+MAIN_LOOP_COUNT = 0
+
+# Functions
 def get_uptime():
+    """
+    Get the amount of time that the CPU has been up and running since last power down
+    """
     f = open("/proc/uptime", "r");
     t = float(f.read().split()[0])
     f.close()
@@ -390,17 +533,10 @@ def move_head(position, servo_pos):
         debug_print('New Pos: '+str(new_servo_pos))
         
         #let the temp's settle
-        time.sleep(MEASUREMENT_WAIT_PERIOD*SETTLE_TIME)
+        time.sleep(MEASUREMENT_WAIT_PERIOD)
 
         return new_servo_pos
 
-LAST_KNOWN_LED_POS = 0  # counter keeps track of which LED to light
-LED_POS_MAX = 4
-LIT_LED = LED0_RED
-LED0_COLOR_SET = [LED0_RED, LED0_YEL, LED0_GRN]
-LED1_COLOR_SET = [LED1_RED, LED1_YEL, LED1_GRN]
-LED2_COLOR_SET = [LED2_RED, LED2_YEL, LED2_GRN]
-LED3_COLOR_SET = [LED3_RED, LED3_YEL, LED3_GRN]
 def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     """
     Puts the servo in roaming (person searching) mode
@@ -637,16 +773,6 @@ def panic():
                     crash_and_burn(CRASH_MSG, pygame, \
                                    SERVO_HANDLE, LOGFILE_HANDLE)
 
-HAMA_SIZE = 3                   # the number of measurements to average
-HIT_ARRAY_MA0 = [0]*HAMA_SIZE
-HIT_ARRAY_MA1 = [0]*HAMA_SIZE
-HIT_ARRAY_MA2 = [0]*HAMA_SIZE
-HIT_ARRAY_MA3 = [0]*HAMA_SIZE
-HMA_I0 = 0
-HMA_I1 = 0
-HMA_I2 = 0
-HMA_I3 = 0
-
 def hstack_push(array, element):
     """
     This function pushes an element in to the proper
@@ -660,50 +786,6 @@ def hstack_push(array, element):
 #    print 'new_array[0] = '+str(element)
     return new_array    
 
-# Constants
-RASPI_I2C_CHANNEL = 1       # the /dev/i2c device
-OMRON_1 = 0x0a              # 7 bit I2C address of Omron Sensor D6T-44L
-OMRON_BUFFER_LENGTH = 35    # Omron data buffer size
-OMRON_DATA_LIST = 16        # Omron data array - sixteen 16 bit words
-MAX_VOLUME = 1.0            # maximum speaker volume for pygame.mixer
-DEGREE_UNIT = 'F'           # F = Farenheit, C=Celcius
-MEASUREMENT_WAIT_PERIOD = 0.3   # time between Omron measurements
-SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
-SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
-LED_GPIO_PIN = 7    # GPIO number that the LED is connected to
-                    # (BCM GPIO_04 (Pi Hat) is the same as BOARD pin 7)
-                    # See "Raspberry Pi B+ J8 Header" diagram
-DEBUG = 0           # set this to 1 to see debug messages on monitor
-SCREEN_DIMENSIONS = [400, 600]  # setup IR window [0]= width [1]= height
-MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
-MAX_TEMP = 200          # minimum expected temperature in Fahrenheit
-ROAM = 0                # if true, robot will look for a heat signature
-ROAM_MAX = 600          # Max number of times to roam between person
-                        # detections (roughly 0.5 seconds between roams
-LOG_MAX = 1200
-RAND = 0                # Causes random head movement when idle
-BURN_HAZARD_TEMP = 100  # temperature at which a warning is given
-BURN_HAZARD_CNT = 0     # number of times burn hazard detected
-BURN_HAZARD_HIT = 10    # Number used in Hit array to indicate hazard
-TEMPMARGIN = 5          # degrees > than room temp to detect person
-PERSON_TEMP_THRESHOLD = 99  # degrees fahrenheit
-MONITOR = 1             # assume a monitor is attached
-CALIBRATION = 0         # don't perform calibration cycle
-
-# Servo positions
-# Weirdness factor: Some servo's I used go in the reverse direction
-# from other servos. Therefore, this next constant is used to change the
-# software to use the appropriate servo. The HiTEC HS-55 Feather servo.
-
-HIT_WEIGHT_PERCENT = 0.1
-PERSON_TEMP_SUM_THRESHOLD = 3
-DETECT_COUNT_THRESH = 3
-PERSON_HIT_COUNT = 4
-PROBABLE_PERSON_THRESH = 3  # used to determine when to say hello
-
-# Logfile
-LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
-
 import RPi.GPIO as GPIO
 GPIO.setwarnings(False) # turn off warnings about DMA channel in use
 GPIO.setmode(GPIO.BOARD)
@@ -711,8 +793,6 @@ GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
 GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
 from RPIO import PWM        # for the servo motor
 PWM.set_loglevel(PWM.LOG_LEVEL_ERRORS) # turn off debug msgs
-
-CONNECTED = 0           # true if connected to the internet
 
 ###############################
 #
@@ -748,28 +828,6 @@ if "-help" in sys.argv:
     print '-roam:    when no person turn head slowly 180 degrees'
     print '-rand:    when roaming randomize the head movement'
     sys.exit()
-
-# Initialize variables
-# holds the recently measured temperature
-TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST
-LED_STATE = True
-# keep track of head roams so that we can turn it off
-ROAM_COUNT = 0
-# QUADRANT of the display (x, y, width, height)
-QUADRANT = [Rect]*OMRON_DATA_LIST
-CENTER = [(0, 0)]*OMRON_DATA_LIST      # center of each QUADRANT
-PX = [0]*4
-PY = [0]*4
-OMRON_ERROR_COUNT = 0
-OMRON_READ_COUNT = 0
-PREVIOUS_HIT_COUNT = 0
-HIT_COUNT = 0
-HIT_ARRAY_TEMP = [0]*OMRON_DATA_LIST
-HIT_ARRAY = [0]*4
-# initialize the servo to face directly forward
-SERVO_POSITION = CTR_SERVO_POSITION
-# set initial direction
-SERVO_DIRECTION = SERVO_CUR_DIR_CW
 
 # Initialize screen
 pygame.init()
@@ -906,49 +964,12 @@ try:
 
     debug_print('Looking for a person')
 
-    NO_PERSON_COUNT = 0
-    P_DETECT = False
-
-# Used to lessen the number of repeat "hello" and "goodbye" messages.
-# Once a person is detected, assume they will be there for a short time
-# so this is used to wait a while before saying goodbye
-                            
-    P_DETECT_COUNT = 0
 ################################
 # initialize the PID controller
 ################################
 
 # PID controller is the feedback loop controller for person following
     PID_CONTROLLER = PID(1.0, 0.1, 0.0)
-# seconds to allow temps to settle once the head has moved
-    SETTLE_TIME = 1.0
-# minimum microseconds if PID error is less than this head will stop
-    MINIMUM_ERROR_GRANULARITY = 20
-
-    HELLO_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
-    AFTER_HELLO_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-sorry.mp3"
-    GOODBYE_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.mp3"
-    BADGE_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
-    BURN_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-warning.mp3"
-    STRETCH_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/stretch.mp3"                      
-    CPU_105_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-105a.mp3"
-    CPU_110_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-110a.mp3"
-    CPU_115_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-115a.mp3"
-    CPU_120_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-120a.mp3"
-    CPU_125_FILE_NAME = \
-        "/home/pi/projects_ggg/raspbot/snd/girl-125a.mp3"
-# the CPU can reach 105 easily, so, normally this is turned off    
-    CPU_105_ON = False
 
     if CONNECTED:
         speakSpeechFromText("Now might be a good time to stand up and stretch", "stretch.mp3")
@@ -959,59 +980,6 @@ try:
         debug_print("Not connected to internet")
         LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
         
-###########################
-# Analyze sensor data
-###########################
-#
-# Sensor data is hard to evaluate. Sometimes there is a weak signal
-#     that appears to light up single array cells. In addition, the
-#     cells are not a perfect 4x4 array. So it seems that each sensor
-#     has a detection area lobe reaching out from the sensor.
-#     As a result of these "lobes", there are dead spots inbetween
-#     sensors. Also, the lobes are not perfectly symetrical; measured
-#     10% offset from an adjacent lobe at 10" away from the sensor.
-#     Hot spot of one lobe was off by 1" compared to an adjacent lobe.
-#
-# In addition, the further away an object is the lower its temperature 
-#     Therefore, what temperature threshold is considered a person?
-#     The room temp sensor is used as a baseline threshold. Anything
-#     below the room temp is considered "background radiation" because
-#     if there is no person or heat source, the sensors measure lower
-#     than room temp (e.g. room temp = 70F, sensors are around 66F).
-#     As a person appears, sensors start measuring above room temp. So,
-#     who knows if room temp is a good threshold or not? I add
-#     a fudge factor to room temp which requires a person to get closer.
-#     Therefore, room temp plus fudge factor results in what I call a
-#     "hit".
-#
-# Now, other complicating factors. A person's clothing will shield
-#     temperature, so, the sensors mainly "see" face and hands.
-#     A coffee cup, light bulb, candle, or other odd heat source light
-#     up one of the sensors and if close enough, can trigger a burn
-#     hazard. Therefore, another threshold, over the person temperature
-#     which is used to say that this is not a person, it must be a fire.
-#     Burn threshold is about 100F.
-#
-# As a result of this behavior, it is hard to say when a person is there
-#     much less, where the person is (to the right or to the left)?
-#     Using the raw threshold to say hello or goodbye results in false
-#     positives and true negatives.
-#
-    STATE_NOTHING = 0
-    STATE_POSSIBLE = 1
-    STATE_LIKELY = 2
-    STATE_PROBABLE = 3
-    STATE_DETECTED = 4
-    STATE_BURN = 5
-    PERSON_STATE = STATE_NOTHING
-    PREV_PERSON_STATE = STATE_NOTHING
-    POSSIBLE_PERSON_MAX = 10 # after 10 one-hits, move head
-    POSSIBLE_PERSON = 0
-    PROBABLE_PERSON = 0
-    EXERSIZE_TIMEOUT = 1200   # seconds between exersize reminders
-    EXERSIZE_TIMEOUT_BLINKS = 10    # number of times to blink LEDs
-                                    # each blink takes 2 seconds
-    
 # setup the IR color window
     if MONITOR:
         SCREEN_DISPLAY = pygame.display.set_mode(SCREEN_DIMENSIONS)
@@ -1046,15 +1014,6 @@ try:
 #############################
 # Main while loop
 #############################
-    SAID_HELLO = 0
-    SAID_GOODBYE = 1
-    STATE_POSSIBLE_COUNT = 0
-    STATE_LIKELY_COUNT = 0
-    STATE_PROBABLE_COUNT = 0
-    STATE_DETECTED_COUNT = 0
-    STATE_COUNT_LIMIT = 5
-    
-    MAIN_LOOP_COUNT = 0
     while True:                 # The main loop
         MAIN_LOOP_COUNT += 1
         CPU_TEMP = getCPUtemperature()
@@ -1153,45 +1112,47 @@ try:
 
         PERSON_TEMP_THRESHOLD = ROOM_TEMP + TEMPMARGIN
 
-        if MONITOR:
-# create the IR pixels
-            for i in range(0, OMRON_DATA_LIST):
-# This fills each array square with a color that matches the temp
-                SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
-                            MIN_TEMP, TEMPERATURE_ARRAY[i]), \
-                            QUADRANT[i])
-# Display temp value
-                if TEMPERATURE_ARRAY[i] > PERSON_TEMP_THRESHOLD:
-                    SCREEN_TEXT = \
-                        FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
-                                    1, name_to_rgb('red'))
-                else:
-                    SCREEN_TEXT = \
-                        FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
-                                    1, name_to_rgb('navy'))
-                SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
-                SCREEN_TEXT_POS.center = CENTER[i]
-                SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
-
-# Create an area to display the room temp and messages
-            SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
-                                MIN_TEMP, ROOM_TEMP), \
-                                ROOM_TEMP_AREA)
-            SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP, 1, \
-                                name_to_rgb('navy'))
-            SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
-            SCREEN_TEXT_POS.center = ROOM_TEMP_MSG_XY
-            SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
-
-# update the screen
-            pygame.display.update()
-
 # testing panic
 #        panic()
         
 ###########################
 # Analyze sensor data
 ###########################
+#
+# Sensor data is hard to evaluate. Sometimes there is a weak signal
+#     that appears to light up single array cells. In addition, the
+#     cells are not a perfect 4x4 array. So it seems that each sensor
+#     has a detection area lobe reaching out from the sensor.
+#     As a result of these "lobes", there are dead spots inbetween
+#     sensors. Also, the lobes are not perfectly symetrical; measured
+#     10% offset from an adjacent lobe at 10" away from the sensor.
+#     Hot spot of one lobe was off by 1" compared to an adjacent lobe.
+#
+# In addition, the further away an object is the lower its temperature 
+#     Therefore, what temperature threshold is considered a person?
+#     The room temp sensor is used as a baseline threshold. Anything
+#     below the room temp is considered "background radiation" because
+#     if there is no person or heat source, the sensors measure lower
+#     than room temp (e.g. room temp = 70F, sensors are around 66F).
+#     As a person appears, sensors start measuring above room temp. So,
+#     who knows if room temp is a good threshold or not? I add
+#     a fudge factor to room temp which requires a person to get closer.
+#     Therefore, room temp plus fudge factor results in what I call a
+#     "hit".
+#
+# Now, other complicating factors. A person's clothing will shield
+#     temperature, so, the sensors mainly "see" face and hands.
+#     A coffee cup, light bulb, candle, or other odd heat source light
+#     up one of the sensors and if close enough, can trigger a burn
+#     hazard. Therefore, another threshold, over the person temperature
+#     which is used to say that this is not a person, it must be a fire.
+#     Burn threshold is about 100F.
+#
+# As a result of this behavior, it is hard to say when a person is there
+#     much less, where the person is (to the right or to the left)?
+#     Using the raw threshold to say hello or goodbye results in false
+#     positives and true negatives.
+#
 
         PREVIOUS_HIT_COUNT = HIT_COUNT
         HIT_COUNT = 0
@@ -1291,6 +1252,39 @@ try:
         if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
             PERSON_STATE = STATE_BURN
 
+        if MONITOR:
+# create the IR pixels
+            for i in range(0, OMRON_DATA_LIST):
+# This fills each array square with a color that matches the temp
+                SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
+                            MIN_TEMP, TEMPERATURE_ARRAY[i]), \
+                            QUADRANT[i])
+# Display temp value
+                if TEMPERATURE_ARRAY[i] > PERSON_TEMP_THRESHOLD:
+                    SCREEN_TEXT = \
+                        FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
+                                    1, name_to_rgb('red'))
+                else:
+                    SCREEN_TEXT = \
+                        FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
+                                    1, name_to_rgb('navy'))
+                SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+                SCREEN_TEXT_POS.center = CENTER[i]
+                SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
+
+# Create an area to display the room temp and messages
+            SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
+                                MIN_TEMP, ROOM_TEMP), \
+                                ROOM_TEMP_AREA)
+            SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP, 1, \
+                                name_to_rgb('navy'))
+            SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
+            SCREEN_TEXT_POS.center = ROOM_TEMP_MSG_XY
+            SCREEN_DISPLAY.blit(SCREEN_TEXT, SCREEN_TEXT_POS)
+
+# update the screen
+            pygame.display.update()
+
 ###########################
 # Burn Hazard Detected !
 ###########################
@@ -1299,7 +1293,6 @@ try:
                        +str(BURN_HAZARD_CNT)+' ROAM_COUNT = ' \
                        +str(ROAM_COUNT))
             ROAM_COUNT = 0
-            POSSIBLE_PERSON = 0
             BURN_HAZARD_CNT += 1
             LED_STATE = True
             GPIO.output(LED_GPIO_PIN, LED_STATE)
@@ -1384,7 +1377,6 @@ try:
                        +str(PREVIOUS_HIT_COUNT))
             NO_PERSON_COUNT += 1
             P_DETECT_COUNT = 0
-            POSSIBLE_PERSON = 0
             PROBABLE_PERSON = 0
             BURN_HAZARD_CNT = 0
             if MONITOR:
@@ -1398,20 +1390,27 @@ try:
 # update the screen
                 pygame.display.update()
 
+# move servo to the next roam position
             (ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
              LAST_KNOWN_LED_POS, LIT_LED) = \
             servo_roam(ROAM_COUNT, SERVO_POSITION, SERVO_DIRECTION, \
                        LAST_KNOWN_LED_POS, LIT_LED)
-# need two hits in a row                 
-            if (HIT_COUNT == 0 or PREVIOUS_HIT_COUNT == 0):
-                PERSON_STATE = STATE_NOTHING
-            else:
+
+# check to see if there is a person there
+            P_DETECT, PERSON_POSITION = \
+                person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
+
+# if there is a person, go to the next state
+            if (P_DETECT):
                 if (PREV_PERSON_STATE == STATE_POSSIBLE):
-# reset the servo position if hits and we just came from possible
-                    servo_pos = \
+# reset the servo position if hits and we just came back from the next state
+                    SERVO_POSITION = \
                         set_servo_to_position(CTR_SERVO_POSITION)
                 else:
                     PERSON_STATE = STATE_POSSIBLE
+            else:
+# if no person detected, stay in this state
+                PERSON_STATE = STATE_NOTHING
 
             PREV_PERSON_STATE = STATE_NOTHING
                 
@@ -1426,17 +1425,12 @@ try:
         elif (PERSON_STATE == STATE_POSSIBLE):
             BURN_HAZARD_CNT = 0
             STATE_POSSIBLE_COUNT += 1
-            debug_print('STATE: POSSIBLE: Possible Person cnt: ' \
-                       +str(POSSIBLE_PERSON))
             NO_PERSON_COUNT += 1
 
             P_DETECT, PERSON_POSITION = \
                 person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
             # stay in possible state
             if (P_DETECT):
-                POSSIBLE_PERSON += 1
-#                if (POSSIBLE_PERSON > POSSIBLE_PERSON_MAX):
-                POSSIBLE_PERSON = 0
                 SERVO_POSITION = \
                     move_head(PERSON_POSITION, \
                               SERVO_POSITION)
@@ -1470,7 +1464,6 @@ try:
             STATE_LIKELY_COUNT += 1
             debug_print('STATE: LIKELY: No Person cnt: ' \
                         +str(NO_PERSON_COUNT))
-            POSSIBLE_PERSON = 0
             NO_PERSON_COUNT += 1
 
             P_DETECT, PERSON_POSITION = \
@@ -1501,7 +1494,6 @@ try:
 #
         elif (PERSON_STATE == STATE_PROBABLE):
             BURN_HAZARD_CNT = 0
-            POSSIBLE_PERSON = 0
             STATE_PROBABLE_COUNT += 1
             debug_print('STATE: PROBABLE: Probable Person cnt: ' \
                         +str(PROBABLE_PERSON))
@@ -1552,7 +1544,6 @@ try:
                        +str(P_DETECT_COUNT))
             ROAM_COUNT = 0
             NO_PERSON_COUNT = 0
-            POSSIBLE_PERSON = 0
             LED_STATE = True
             GPIO.output(LED_GPIO_PIN, LED_STATE)
             P_DETECT_COUNT += 1
