@@ -62,10 +62,6 @@ def movingaverage (values, window):
 #       (RGY) take +3v through a 1k resistor. The LEDs are LUMEX
 #       SSL-LX5097 or DigiKey 67-2184-ND
 #
-#   LED0 (_RED, _YEL, _GRN) = hit_array[0] 
-#   LED1 (_RED, _YEL, _GRN) = hit_array[1] 
-#   LED2 (_RED, _YEL, _GRN) = hit_array[2] 
-#   LED3 (_RED, _YEL, _GRN) = hit_array[3] 
 LED0_RED = 11   # AKA: BCM GPIO 17
 LED0_YEL = 12   # AKA: BCM GPIO 18
 LED0_GRN = 13   # AKA: BCM GPIO 27
@@ -175,12 +171,14 @@ MAX_VOLUME = 1.0            # maximum speaker volume for pygame.mixer
 DEGREE_UNIT = 'F'           # F = Farenheit, C=Celcius
 MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
 MAX_TEMP = 200          # maximum expected temperature in Fahrenheit
-BURN_HAZARD_TEMP = 100  # temperature at which a warning is given
+TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST # holds the recently measured temperature
+HUMAN_TEMP_MIN = 82     # Human temp min empirically measured at 3 feet away
+HUMAN_TEMP_MAX = 98     # Human temp max if they don't have the flu
+TEMPMARGIN = 2          # degrees > than room temp to detect person
+
+BURN_HAZARD_TEMP = HUMAN_TEMP_MAX + TEMPMARGIN  # temperature at which a warning is given
 BURN_HAZARD_CNT = 0     # number of times burn hazard detected
 BURN_HAZARD_HIT = 10    # Number used in Hit array to indicate hazard
-TEMPMARGIN = 4          # degrees > than room temp to detect person
-PERSON_TEMP_THRESHOLD = 99  # degrees fahrenheit
-TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST # holds the recently measured temperature
 
 # Screen constants
 SCREEN_DIMENSIONS = [400, 600]  # setup IR window [0]= width [1]= height
@@ -191,7 +189,6 @@ PX = [0]*4
 PY = [0]*4
 
 # person detecting constants
-PROBABLE_PERSON_THRESH = 3  # used to determine when to say hello
 PREVIOUS_HIT_COUNT = 0
 HIT_COUNT = 0
 HIT_ARRAY_TEMP = [0]*OMRON_DATA_LIST
@@ -242,7 +239,6 @@ STATE_DETECTED = 4
 STATE_BURN = 5
 PERSON_STATE = STATE_NOTHING
 PREV_PERSON_STATE = STATE_NOTHING
-PROBABLE_PERSON = 0
 STATE_POSSIBLE_COUNT = 0
 STATE_LIKELY_COUNT = 0
 STATE_PROBABLE_COUNT = 0
@@ -253,6 +249,8 @@ STATE_COUNT_LIMIT = 5
 CONNECTED = 0           # true if connected to the internet
 CPU_105_ON = False      # the CPU can reach 105 easily
 MAIN_LOOP_COUNT = 0
+GPIO_BADGE = 38   # AKA: BCM GPIO 20
+BADGE = 0
 
 # Functions
 def get_uptime():
@@ -640,8 +638,12 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         GPIO.output(LED2_GRN, LED_OFF)
         GPIO.output(LED3_GRN, LED_OFF)
 
-# Start roaming again if no action
-        if roam_cnt >= ROAM_MAX*20:
+# Check for a person hit
+        P_DETECT, PERSON_POSITION = \
+            person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
+
+# Start roaming again if no action or a person hit
+        if (roam_cnt >= ROAM_MAX*20 or P_DETECT):
             roam_cnt = 0
             GPIO.output(LED0_GRN, LED_OFF)
             GPIO.output(LED1_GRN, LED_OFF)
@@ -688,9 +690,10 @@ def say_goodbye():
     debug_print('\r\n**************************\r\n      Goodbye Person!\r\n**************************')
 
 # Play "bye bye" sound effect
-    #byebye_message = random.choice(BYEBYE_FILE_NAME)
-##    debug_print('Playing badge audio')
-##    play_sound(MAX_VOLUME, BADGE_FILE_NAME)
+    BADGE = GPIO.input(GPIO_BADGE)
+    if BADGE == 1:
+        debug_print('Playing badge audio')
+        play_sound(MAX_VOLUME, BADGE_FILE_NAME)
 
     debug_print('Playing good bye audio')
     play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
@@ -730,6 +733,7 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     GPIO.output(LED3_RED, LED_OFF)
     GPIO.output(LED3_YEL, LED_OFF)
     GPIO.output(LED3_GRN, LED_OFF)
+
     py_game.quit()
     PWM.cleanup()
     log_file.write(msg+' @ '+str(datetime.now()))
@@ -1056,7 +1060,7 @@ try:
             debug_print(LOGFILE_ARGS_STRING)
             debug_print(LOGFILE_TEMP_STRING)
             debug_print('person temp threshold = ' \
-                       +str(PERSON_TEMP_THRESHOLD))
+                       +str(HUMAN_TEMP_MIN))
 # Display the Omron internal temperature
             debug_print('Servo Type: '+str(SERVO_TYPE))
 
@@ -1110,8 +1114,9 @@ try:
                 +str(BYTES_READ))
             panic()
 
-        PERSON_TEMP_THRESHOLD = ROOM_TEMP + TEMPMARGIN
-
+        if (ROOM_TEMP >= HUMAN_TEMP_MIN):
+            HUMAN_TEMP_MIN = ROOM_TEMP + TEMPMARGIN
+            
 # testing panic
 #        panic()
         
@@ -1168,7 +1173,7 @@ try:
                 HIT_COUNT += 1
                 
             elif (TEMPERATURE_ARRAY[element] > \
-                  PERSON_TEMP_THRESHOLD):
+                  HUMAN_TEMP_MIN):
                 HIT_ARRAY_TEMP[element] += 1
                 HIT_COUNT += 1
 
@@ -1260,7 +1265,7 @@ try:
                             MIN_TEMP, TEMPERATURE_ARRAY[i]), \
                             QUADRANT[i])
 # Display temp value
-                if TEMPERATURE_ARRAY[i] > PERSON_TEMP_THRESHOLD:
+                if TEMPERATURE_ARRAY[i] > HUMAN_TEMP_MIN:
                     SCREEN_TEXT = \
                         FONT.render("%.1f"%TEMPERATURE_ARRAY[i], \
                                     1, name_to_rgb('red'))
@@ -1377,7 +1382,6 @@ try:
                        +str(PREVIOUS_HIT_COUNT))
             NO_PERSON_COUNT += 1
             P_DETECT_COUNT = 0
-            PROBABLE_PERSON = 0
             BURN_HAZARD_CNT = 0
             if MONITOR:
                 SCREEN_DISPLAY.fill(name_to_rgb('white'), \
@@ -1495,32 +1499,33 @@ try:
         elif (PERSON_STATE == STATE_PROBABLE):
             BURN_HAZARD_CNT = 0
             STATE_PROBABLE_COUNT += 1
-            debug_print('STATE: PROBABLE: Probable Person cnt: ' \
-                        +str(PROBABLE_PERSON))
+            debug_print('STATE: PROBABLE count: ' \
+                        +str(STATE_PROBABLE_COUNT))
 
             P_DETECT, PERSON_POSITION = \
                       person_position_2_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
             if (P_DETECT):
+                detected_time_stamp = get_uptime()
+                debug_print('Person detected at '+str(detected_time_stamp))
+                PERSON_STATE = STATE_DETECTED
+                ROAM_COUNT = 0
+
                 SERVO_POSITION = move_head(PERSON_POSITION, \
                                            SERVO_POSITION)
-                ROAM_COUNT = 0
-                PROBABLE_PERSON += 1
-                if (PROBABLE_PERSON > PROBABLE_PERSON_THRESH \
-                    and HIT_COUNT > 5):
-                    if (SAID_GOODBYE == 1 and SAID_HELLO == 0):
-                        say_hello()
-                        SAID_HELLO = 1
-                        SAID_GOODBYE = 0
-                    detected_time_stamp = get_uptime()
-                    debug_print('Person detected at '+str(detected_time_stamp))
-                    PERSON_STATE = STATE_DETECTED
-                    PROBABLE_PERSON = 0
+#####################
+# Say Hello!
+#####################
+                if (SAID_GOODBYE == 1 and SAID_HELLO == 0):
+                    say_hello()
+                    SAID_HELLO = 1
+                    SAID_GOODBYE = 0
+
+                if (STATE_PROBABLE_COUNT > STATE_COUNT_LIMIT):
+                    PERSON_STATE = STATE_LIKELY
                 else:
-                    if (STATE_PROBABLE_COUNT > STATE_COUNT_LIMIT):
-                        PERSON_STATE = STATE_LIKELY
-                    else:
-                        PERSON_STATE = STATE_PROBABLE
+                    PERSON_STATE = STATE_PROBABLE
+
             else:
                 PERSON_STATE = STATE_LIKELY
 
@@ -1540,17 +1545,17 @@ try:
             STATE_LIKELY_COUNT = 0
             STATE_PROBABLE_COUNT = 0
             STATE_DETECTED_COUNT += 1
-            debug_print('STATE: DETECTED: detect cnt: ' \
-                       +str(P_DETECT_COUNT))
             ROAM_COUNT = 0
             NO_PERSON_COUNT = 0
             LED_STATE = True
             GPIO.output(LED_GPIO_PIN, LED_STATE)
             P_DETECT_COUNT += 1
             CPU_TEMP = getCPUtemperature()
-            debug_print('Person_count: '+str(P_DETECT_COUNT)+ \
-                       ' Max: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
-                       ' Servo: '+str(SERVO_POSITION)+' CPU: ' \
+
+            debug_print('STATE: DETECTED count: ' \
+                       +str(P_DETECT_COUNT)+
+                       ' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
+                       ' Servo pos: '+str(SERVO_POSITION)+' CPU Temp: ' \
                        +str(CPU_TEMP))
 
 # every 20 minutes that a person is detected, have the bot remind
