@@ -144,6 +144,7 @@ HMA_I0 = 0
 HMA_I1 = 0
 HMA_I2 = 0
 HMA_I3 = 0
+HIT_COUNT_LIMIT = 4             # if less than this, probably not a person
 
 # Command line argument constants
 DEBUG = 0           # set this to 1 to see debug messages on monitor
@@ -246,7 +247,7 @@ NOTHING_TO_POSSIBLE_COUNT = 0
 PTLC_LIMIT = 3
 POSSIBLE_TO_LIKELY_COUNT = 0
 LTPC_LIMIT = 3
-LIKELY__TO_PROBABLE_COUNT = 0
+LIKELY_TO_PROBABLE_COUNT = 0
 PTDC_LIMIT = 3
 PROBABLE_TO_DETECTED_COUNT = 0
 
@@ -333,9 +334,18 @@ def set_servo_to_position (new_position):
 
 def resolve_new_position(move_cw, servo_pos, move_distance):
         if (move_cw):
-            new_position = servo_pos + move_distance
+#            debug_print('RNP: DIR: CW')
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                new_position = servo_pos + move_distance
+            else:
+                new_position = servo_pos - move_distance
         else:
-            new_position = servo_pos - move_distance
+#            debug_print('RNP: DIR: CCW')
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                new_position = servo_pos - move_distance
+            else:
+                new_position = servo_pos + move_distance
+#        debug_print('RNP: New Pos: '+str(new_position)) 
 
         return new_position
     
@@ -530,10 +540,10 @@ def move_head(position, servo_pos):
 # make the robot turn its head to the person
 # if previous error is the same absolute value as the current error,
 # then we are oscillating - stop it
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            servo_pos += pid_error
-        else:
-            servo_pos -= pid_error
+#        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+        servo_pos += pid_error
+#        else:
+#            servo_pos -= pid_error
                            
         debug_print('Des Pos: '+str(position)+ \
                    ' New Pos: '+str(servo_pos)+ \
@@ -544,7 +554,7 @@ def move_head(position, servo_pos):
         debug_print('New Pos: '+str(new_servo_pos))
         
         #let the temp's settle
-        time.sleep(MEASUREMENT_WAIT_PERIOD)
+#        time.sleep(MEASUREMENT_WAIT_PERIOD)
 
         return new_servo_pos
 
@@ -1546,7 +1556,7 @@ try:
             P_DETECT, PERSON_POSITION = \
                       person_position_x_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
-            if (P_DETECT):
+            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
                 detected_time_stamp = get_uptime()
                 debug_print('Person detected at '+str(detected_time_stamp))
                 ROAM_COUNT = 0
@@ -1653,7 +1663,7 @@ try:
             P_DETECT, PERSON_POSITION = \
                       person_position_2_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
-            if (P_DETECT):
+            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
                 SERVO_POSITION = move_head(PERSON_POSITION, \
                                            SERVO_POSITION)
                 PERSON_STATE = STATE_DETECTED
