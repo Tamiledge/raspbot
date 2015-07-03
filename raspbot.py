@@ -93,10 +93,10 @@ MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
 ROAMING_GRANULARTY = 40         # the distance moved during roaming
-MOVE_DIST_CLOSE = 70     
-MOVE_DIST_SHORT = 100      
-MOVE_DIST_MEDIUM = 170       
-MOVE_DIST_FAR = 240       
+MOVE_DIST_CLOSE = 30     
+MOVE_DIST_SHORT = 50      
+MOVE_DIST_MEDIUM = 75       
+MOVE_DIST_FAR = 100       
 SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
 ROAM_MAX = 600          # Max number of times to roam between person
@@ -241,6 +241,14 @@ STATE_LIKELY_COUNT = 0
 STATE_PROBABLE_COUNT = 0
 STATE_DETECTED_COUNT = 0
 STATE_COUNT_LIMIT = 5
+NTPC_LIMIT = 3
+NOTHING_TO_POSSIBLE_COUNT = 0
+PTLC_LIMIT = 3
+POSSIBLE_TO_LIKELY_COUNT = 0
+LTPC_LIMIT = 3
+LIKELY__TO_PROBABLE_COUNT = 0
+PTDC_LIMIT = 3
+PROBABLE_TO_DETECTED_COUNT = 0
 
 # Miscellaneous constants
 CONNECTED = 0           # true if connected to the internet
@@ -384,74 +392,76 @@ def person_position_1_hit(hit_array_1, s_position):
         person_pos_1 = resolve_new_position(move_cw_1, s_position, move_dist_1)
 
     debug_print('person_position_1: Pos: '+str(person_pos_1)+ \
-                ' Det: '+str(person_det_1))
+                ' Det: '+str(person_det_1)+ \
+                ' New Move Dist: '+str(move_dist_1))
 
     return (person_det_1, person_pos_1)
 
-def person_position_x_hit(hit_array_1, s_position):
+def person_position_x_hit(hit_array_x, s_position):
     """
     Detect a persons presence using "one side is greater than the other algorithm"
     returns (TRUE if person detected, approximate person position)
     """
-    person_det_1 = True
-    person_pos_1 = s_position
-    move_dist_1 = 0
-    move_cw_1 = True
+    person_det_x = True
+    person_pos_x = s_position
+    move_dist_x = 0
+    move_cw_x = True
 
-    if (hit_array_1[1] > hit_array_1[0] and hit_array_1[2] > hit_array_1[3]):
+    if (hit_array_x[1] > hit_array_x[0] and hit_array_x[2] > hit_array_x[3]):
         # person is centered
-        move_dist_1 = 0
-    elif (hit_array_1[0] > hit_array_1[1] and \
-          hit_array_1[0] > hit_array_1[2] and \
-          hit_array_1[0] > hit_array_1[3]):
-        move_dist_1 = MOVE_DIST_FAR
-        move_cw_1 = False
-    elif (hit_array_1[1] > hit_array_1[0] and \
-          hit_array_1[1] > hit_array_1[2] and \
-          hit_array_1[1] > hit_array_1[3]):
-        move_dist_1 = MOVE_DIST_SHORT
-        move_cw_1 = False
-    elif (hit_array_1[2] > hit_array_1[0] and \
-          hit_array_1[2] > hit_array_1[1] and \
-          hit_array_1[2] > hit_array_1[3]):
-        move_dist_1 = MOVE_DIST_SHORT
-        move_cw_1 = True
-    elif (hit_array_1[3] > hit_array_1[0] and \
-          hit_array_1[3] > hit_array_1[1] and \
-          hit_array_1[3] > hit_array_1[2]):
-        move_dist_1 = MOVE_DIST_FAR
-        move_cw_1 = True
-    elif (hit_array_1[0] == hit_array_1[1] and \
-          hit_array_1[0] > hit_array_1[2] and \
-          hit_array_1[0] > hit_array_1[3]):
-        move_dist_1 = MOVE_DIST_MEDIUM
-        move_cw_1 = False
-    elif (hit_array_1[2] == hit_array_1[3] and \
-          hit_array_1[2] > hit_array_1[1] and \
-          hit_array_1[2] > hit_array_1[0]):
-        move_dist_1 = MOVE_DIST_MEDIUM
-        move_cw_1 = True
-    elif (hit_array_1[0] == hit_array_1[1] and \
-          hit_array_1[0] == hit_array_1[2] and \
-          hit_array_1[0] > hit_array_1[3]):
-        move_dist_1 = MOVE_DIST_CLOSE
-        move_cw_1 = False
-    elif (hit_array_1[3] == hit_array_1[2] and \
-          hit_array_1[3] == hit_array_1[1] and \
-          hit_array_1[3] > hit_array_1[0]):
-        move_dist_1 = MOVE_DIST_CLOSE
-        move_cw_1 = True
+        move_dist_x = 0
+    elif (hit_array_x[0] > hit_array_x[1] and \
+          hit_array_x[0] > hit_array_x[2] and \
+          hit_array_x[0] > hit_array_x[3]):
+        move_dist_x = MOVE_DIST_FAR
+        move_cw_x = True
+    elif (hit_array_x[1] > hit_array_x[0] and \
+          hit_array_x[1] > hit_array_x[2] and \
+          hit_array_x[1] > hit_array_x[3]):
+        move_dist_x = MOVE_DIST_SHORT
+        move_cw_x = True
+    elif (hit_array_x[2] > hit_array_x[0] and \
+          hit_array_x[2] > hit_array_x[1] and \
+          hit_array_x[2] > hit_array_x[3]):
+        move_dist_x = MOVE_DIST_SHORT
+        move_cw_x = False
+    elif (hit_array_x[3] > hit_array_x[0] and \
+          hit_array_x[3] > hit_array_x[1] and \
+          hit_array_x[3] > hit_array_x[2]):
+        move_dist_x = MOVE_DIST_FAR
+        move_cw_x = False
+    elif (hit_array_x[0] == hit_array_x[1] and \
+          hit_array_x[0] > hit_array_x[2] and \
+          hit_array_x[0] > hit_array_x[3]):
+        move_dist_x = MOVE_DIST_MEDIUM
+        move_cw_x = True
+    elif (hit_array_x[2] == hit_array_x[3] and \
+          hit_array_x[2] > hit_array_x[1] and \
+          hit_array_x[2] > hit_array_x[0]):
+        move_dist_x = MOVE_DIST_MEDIUM
+        move_cw_x = False
+    elif (hit_array_x[0] == hit_array_x[1] and \
+          hit_array_x[0] == hit_array_x[2] and \
+          hit_array_x[0] > hit_array_x[3]):
+        move_dist_x = MOVE_DIST_CLOSE
+        move_cw_x = True
+    elif (hit_array_x[3] == hit_array_x[2] and \
+          hit_array_x[3] == hit_array_x[1] and \
+          hit_array_x[3] > hit_array_x[0]):
+        move_dist_x = MOVE_DIST_CLOSE
+        move_cw_x = False
     else:
         # no person detected
-        person_det_1 = False
+        person_det_x = False
 
-    if (move_dist_1 > 0):
-        person_pos_1 = resolve_new_position(move_cw_1, s_position, move_dist_1)
+    if (move_dist_x > 0):
+        person_pos_x = resolve_new_position(move_cw_x, s_position, move_dist_x)
 
-    debug_print('person_position_1: Pos: '+str(person_pos_1)+ \
-                ' Det: '+str(person_det_1))
+    debug_print('person_position_x: Pos: '+str(person_pos_x)+ \
+                ' Det: '+str(person_det_x)+ \
+                ' New Move Dist: '+str(move_dist_x))
 
-    return (person_det_1, person_pos_1)
+    return (person_det_x, person_pos_x)
 
 def person_position_2_hit(hit_array_2, s_position):
     """
@@ -501,7 +511,8 @@ def person_position_2_hit(hit_array_2, s_position):
         person_pos_2 = resolve_new_position(move_cw_2, s_position, move_dist_2)
 
     debug_print('person_position_2: Pos: '+str(person_pos_2)+ \
-                ' Det: '+str(person_det_2))
+                ' Det: '+str(person_det_2)+ \
+                ' New Move Dist: '+str(move_dist_2))
 
     return (person_det_2, person_pos_2)
 
@@ -1379,10 +1390,6 @@ try:
 #     Event 1: One or more sensors cross the person threshold
 #
         elif (PERSON_STATE == STATE_NOTHING):
-            STATE_POSSIBLE_COUNT = 0
-            STATE_LIKELY_COUNT = 0
-            STATE_PROBABLE_COUNT = 0
-            STATE_DETECTED_COUNT = 0
             debug_print('STATE: NOTHING: No Person cnt: ' \
                        +str(NO_PERSON_COUNT)+' ROAM_COUNT = ' \
                        +str(ROAM_COUNT)+' Hit Cnt = ' \
@@ -1414,16 +1421,28 @@ try:
 
 # if there is a person, go to the next state
             if (P_DETECT):
+                PERSON_STATE = STATE_POSSIBLE
                 if (PREV_PERSON_STATE == STATE_POSSIBLE):
+                    NOTHING_TO_POSSIBLE_COUNT += 1
+                    if (NOTHING_TO_POSSIBLE_COUNT > NTPC_LIMIT):
 # reset the servo position if hits and we just came back from the next state
-                    SERVO_POSITION = \
-                        set_servo_to_position(CTR_SERVO_POSITION)
+                        NOTHING_TO_POSSIBLE_COUNT = 0
+                        debug_print('Jumping back and forth between Nothing and Possible. Resetting Servo')
+                        SERVO_POSITION = \
+                            set_servo_to_position(CTR_SERVO_POSITION)
+                        PERSON_STATE = STATE_NOTHING
                 else:
-                    PERSON_STATE = STATE_POSSIBLE
+                    SERVO_POSITION = \
+                        move_head(PERSON_POSITION, \
+                                  SERVO_POSITION)
             else:
 # if no person detected, stay in this state
                 PERSON_STATE = STATE_NOTHING
 
+            STATE_POSSIBLE_COUNT = 0
+            STATE_LIKELY_COUNT = 0
+            STATE_PROBABLE_COUNT = 0
+            STATE_DETECTED_COUNT = 0
             PREV_PERSON_STATE = STATE_NOTHING
                 
 ###########################
@@ -1443,21 +1462,24 @@ try:
             NO_PERSON_COUNT += 1
 
             P_DETECT, PERSON_POSITION = \
-                person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
+                person_position_2_hit(HIT_ARRAY, SERVO_POSITION)
             # stay in possible state
             if (P_DETECT):
-                SERVO_POSITION = \
-                    move_head(PERSON_POSITION, \
-                              SERVO_POSITION)
-                if (STATE_POSSIBLE_COUNT > STATE_COUNT_LIMIT):
-                    PERSON_STATE = STATE_NOTHING
-                else:
-                    if (PREV_PERSON_STATE == STATE_LIKELY):
-                        PERSON_STATE = STATE_NOTHING
+                PERSON_STATE = STATE_LIKELY
+                if (PREV_PERSON_STATE == STATE_LIKELY):
+                    POSSIBLE_TO_LIKELY_COUNT += 1
+                    if (POSSIBLE_TO_LIKELY_COUNT > PTLC_LIMIT):
+# reset the servo position if hits and we just came back from the next state
+                        POSSIBLE_TO_LIKELY_COUNT = 0
+                        debug_print('Jumping back and forth between Possible and Likely. Resetting Servo')
                         SERVO_POSITION = \
                             set_servo_to_position(CTR_SERVO_POSITION)
-                    else:
-                        PERSON_STATE = STATE_LIKELY
+                        PERSON_STATE = STATE_NOTHING
+                else:
+                    SERVO_POSITION = \
+                        move_head(PERSON_POSITION, \
+                                  SERVO_POSITION)
+# if no person detected, go to nothing
             else:
                 if (SAID_HELLO == 1 and SAID_GOODBYE == 0):
                     say_goodbye()
@@ -1477,25 +1499,31 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
         elif (PERSON_STATE == STATE_LIKELY):
+            ROAM_COUNT = 0
             BURN_HAZARD_CNT = 0
             STATE_LIKELY_COUNT += 1
-            debug_print('STATE: LIKELY: No Person cnt: ' \
+            debug_print('STATE: LIKELY cnt: '+str(STATE_LIKELY_COUNT)+' No Person cnt: ' \
                         +str(NO_PERSON_COUNT))
             NO_PERSON_COUNT += 1
 
             P_DETECT, PERSON_POSITION = \
-                      person_position_2_hit(HIT_ARRAY, \
+                      person_position_x_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
             if (P_DETECT):
-                SERVO_POSITION = move_head(PERSON_POSITION, \
-                                           SERVO_POSITION)
-                ROAM_COUNT = 0
-                debug_print('STATE LIKELY cnt: ' \
-                           +str(STATE_LIKELY_COUNT))
-                if (STATE_LIKELY_COUNT > STATE_COUNT_LIMIT):
-                    PERSON_STATE = STATE_POSSIBLE
+                PERSON_STATE = STATE_PROBABLE
+                if (PREV_PERSON_STATE == STATE_PROBABLE):
+                    LIKELY_TO_PROBABLE_COUNT += 1
+                    if (LIKELY_TO_PROBABLE_COUNT > LTPC_LIMIT):
+# reset the servo position if hits and we just came back from the next state
+                        LIKELY_TO_PROBABLE_COUNT = 0
+                        debug_print('Jumping back and forth between Likely and Probable. Resetting Servo')
+                        SERVO_POSITION = \
+                            set_servo_to_position(CTR_SERVO_POSITION)
+                        PERSON_STATE = STATE_NOTHING
                 else:
-                    PERSON_STATE = STATE_PROBABLE
+                    SERVO_POSITION = \
+                        move_head(PERSON_POSITION, \
+                                  SERVO_POSITION)
             else:
                 PERSON_STATE = STATE_POSSIBLE
                     
@@ -1516,29 +1544,33 @@ try:
                         +str(STATE_PROBABLE_COUNT))
 
             P_DETECT, PERSON_POSITION = \
-                      person_position_2_hit(HIT_ARRAY, \
+                      person_position_x_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
             if (P_DETECT):
                 detected_time_stamp = get_uptime()
                 debug_print('Person detected at '+str(detected_time_stamp))
-                PERSON_STATE = STATE_DETECTED
                 ROAM_COUNT = 0
-
-                SERVO_POSITION = move_head(PERSON_POSITION, \
-                                           SERVO_POSITION)
+                PERSON_STATE = STATE_DETECTED
+                if (PREV_PERSON_STATE == STATE_DETECTED):
+                    PROBABLE_TO_DETECTED_COUNT += 1
+                    if (PROBABLE_TO_DETECTED_COUNT > PTDC_LIMIT):
+# reset the servo position if hits and we just came back from the next state
+                        PROBABLE_TO_DETECTED_COUNT = 0
+                        debug_print('Jumping back and forth between Probable and Detected. Resetting Servo')
+                        SERVO_POSITION = \
+                            set_servo_to_position(CTR_SERVO_POSITION)
+                        PERSON_STATE = STATE_NOTHING
+                else:
+                    SERVO_POSITION = \
+                        move_head(PERSON_POSITION, \
+                                  SERVO_POSITION)
 #####################
 # Say Hello!
 #####################
-                if (SAID_GOODBYE == 1 and SAID_HELLO == 0):
-                    say_hello()
-                    SAID_HELLO = 1
-                    SAID_GOODBYE = 0
-
-                if (STATE_PROBABLE_COUNT > STATE_COUNT_LIMIT):
-                    PERSON_STATE = STATE_LIKELY
-                else:
-                    PERSON_STATE = STATE_PROBABLE
-
+                    if (SAID_GOODBYE == 1 and SAID_HELLO == 0):
+                        say_hello()
+                        SAID_HELLO = 1
+                        SAID_GOODBYE = 0
             else:
                 PERSON_STATE = STATE_LIKELY
 
