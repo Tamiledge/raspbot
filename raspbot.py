@@ -41,14 +41,11 @@ from omron_src import omron_read    # contains omron functions
 #import urllib, pycurl, os           # needed for text to speech
 from pid import PID
 from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb, speakSpeechFromText
+import RPi.GPIO as GPIO
+from RPIO import PWM        # for the servo motor
 
 import numpy as np
 from numpy import convolve
- 
-def movingaverage (values, window):
-    weights = np.repeat(1.0, window)/window
-    sma = np.convolve(values, weights, 'valid')
-    return sma
  
 # all the LED constants
 
@@ -95,7 +92,7 @@ CTR_SERVO_POSITION = 1500
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
-ROAMING_GRANULARTY = 20
+ROAMING_GRANULARTY = 40         # the distance moved during roaming
 MOVE_DIST_CLOSE = 70     
 MOVE_DIST_SHORT = 100      
 MOVE_DIST_MEDIUM = 170       
@@ -160,7 +157,7 @@ RASPI_I2C_CHANNEL = 1       # the /dev/i2c device
 OMRON_1 = 0x0a              # 7 bit I2C address of Omron Sensor D6T-44L
 OMRON_BUFFER_LENGTH = 35    # Omron data buffer size
 OMRON_DATA_LIST = 16        # Omron data array - sixteen 16 bit words
-MEASUREMENT_WAIT_PERIOD = 0.5   # time between Omron measurements
+MEASUREMENT_WAIT_PERIOD = 0.25   # time between Omron measurements
 OMRON_ERROR_COUNT = 0
 OMRON_READ_COUNT = 0
 
@@ -249,10 +246,15 @@ STATE_COUNT_LIMIT = 5
 CONNECTED = 0           # true if connected to the internet
 CPU_105_ON = False      # the CPU can reach 105 easily
 MAIN_LOOP_COUNT = 0
-GPIO_BADGE = 38   # AKA: BCM GPIO 20
+BADGE_GPIO_PIN = 38   # AKA: BCM GPIO 20
 BADGE = 0
 
 # Functions
+def movingaverage (values, window):
+    weights = np.repeat(1.0, window)/window
+    sma = np.convolve(values, weights, 'valid')
+    return sma
+ 
 def get_uptime():
     """
     Get the amount of time that the CPU has been up and running since last power down
@@ -567,12 +569,18 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 
         # determine next servo position    
         if RAND:
+            if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                servo_pos = \
+                   random.randint(MAX_SERVO_POSITION, \
+                                   MIN_SERVO_POSITION)
+            else:
+                servo_pos = \
+                    random.randint(MIN_SERVO_POSITION, \
+                                   MAX_SERVO_POSITION)
+                    
             debug_print('SERVO_RAND Pos: ' \
                        +str(servo_pos)+' Dir: ' \
                        +str(servo_dir))
-            servo_pos = \
-                random.randint(MAX_SERVO_POSITION, \
-                               MIN_SERVO_POSITION)
 
         elif ROAM:
             if servo_dir == SERVO_CUR_DIR_CCW:
@@ -690,7 +698,7 @@ def say_goodbye():
     debug_print('\r\n**************************\r\n      Goodbye Person!\r\n**************************')
 
 # Play "bye bye" sound effect
-    BADGE = GPIO.input(GPIO_BADGE)
+    BADGE = GPIO.input(BADGE_GPIO_PIN)
     if BADGE == 1:
         debug_print('Playing badge audio')
         play_sound(MAX_VOLUME, BADGE_FILE_NAME)
@@ -790,12 +798,12 @@ def hstack_push(array, element):
 #    print 'new_array[0] = '+str(element)
     return new_array    
 
-import RPi.GPIO as GPIO
 GPIO.setwarnings(False) # turn off warnings about DMA channel in use
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
 GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
-from RPIO import PWM        # for the servo motor
+GPIO.setup(BADGE_GPIO_PIN, GPIO.IN, GPIO.PUD_OFF)
+
 PWM.set_loglevel(PWM.LOG_LEVEL_ERRORS) # turn off debug msgs
 
 ###############################
@@ -1427,6 +1435,9 @@ try:
 #     Event 2: More than one hit - state 2
 #
         elif (PERSON_STATE == STATE_POSSIBLE):
+            ROAM_COUNT = 0
+            debug_print('STATE POSSIBLE cnt: ' \
+                       +str(STATE_POSSIBLE_COUNT))
             BURN_HAZARD_CNT = 0
             STATE_POSSIBLE_COUNT += 1
             NO_PERSON_COUNT += 1
@@ -1438,13 +1449,15 @@ try:
                 SERVO_POSITION = \
                     move_head(PERSON_POSITION, \
                               SERVO_POSITION)
-                ROAM_COUNT = 0
-                debug_print('STATE POSSIBLE cnt: ' \
-                           +str(STATE_POSSIBLE_COUNT))
                 if (STATE_POSSIBLE_COUNT > STATE_COUNT_LIMIT):
                     PERSON_STATE = STATE_NOTHING
                 else:
-                    PERSON_STATE = STATE_LIKELY
+                    if (PREV_PERSON_STATE == STATE_LIKELY):
+                        PERSON_STATE = STATE_NOTHING
+                        SERVO_POSITION = \
+                            set_servo_to_position(CTR_SERVO_POSITION)
+                    else:
+                        PERSON_STATE = STATE_LIKELY
             else:
                 if (SAID_HELLO == 1 and SAID_GOODBYE == 0):
                     say_goodbye()
@@ -1540,6 +1553,12 @@ try:
 #     Event 2: more than one sensor, move head to position, stay
 #     
         elif (PERSON_STATE == STATE_DETECTED):
+            debug_print('STATE: DETECTED count: ' \
+                       +str(P_DETECT_COUNT)+
+                       ' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
+                       ' Servo pos: '+str(SERVO_POSITION)+' CPU Temp: ' \
+                       +str(CPU_TEMP))
+
             BURN_HAZARD_CNT = 0
             STATE_POSSIBLE_COUNT = 0
             STATE_LIKELY_COUNT = 0
@@ -1551,12 +1570,6 @@ try:
             GPIO.output(LED_GPIO_PIN, LED_STATE)
             P_DETECT_COUNT += 1
             CPU_TEMP = getCPUtemperature()
-
-            debug_print('STATE: DETECTED count: ' \
-                       +str(P_DETECT_COUNT)+
-                       ' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
-                       ' Servo pos: '+str(SERVO_POSITION)+' CPU Temp: ' \
-                       +str(CPU_TEMP))
 
 # every 20 minutes that a person is detected, have the bot remind
 # the person to get some excersize.
