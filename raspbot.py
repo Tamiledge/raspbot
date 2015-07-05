@@ -605,14 +605,14 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 
         elif ROAM:
             if servo_dir == SERVO_CUR_DIR_CCW:
-                debug_print('SERVO_ROAM Pos: '+ \
+                debug_print('SERVO ROAM Pos: '+ \
                     str(servo_pos)+' Direction: CCW')
                 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                     servo_pos -= ROAMING_GRANULARTY
                 else:
                     servo_pos += ROAMING_GRANULARTY
             if servo_dir == SERVO_CUR_DIR_CW:
-                debug_print('SERVO_ROAM Pos: '+ \
+                debug_print('SERVO ROAM Pos: '+ \
                     str(servo_pos)+' Direction: CW')
                 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                     servo_pos += ROAMING_GRANULARTY
@@ -924,6 +924,9 @@ try:
 # Initialize the selected Omron sensor
 
     GPIO.output(LED0_GRN, LED_ON)
+    GPIO.output(LED1_GRN, LED_ON)
+    GPIO.output(LED2_GRN, LED_ON)
+    GPIO.output(LED3_GRN, LED_ON)
     if DEBUG:
         print('DEBUG switch is on, initializing Omron sensor...')
 
@@ -932,7 +935,13 @@ try:
 
     if OMRON1_HANDLE < 1:
         GPIO.output(LED0_GRN, LED_OFF)
+        GPIO.output(LED1_GRN, LED_OFF)
+        GPIO.output(LED2_GRN, LED_OFF)
+        GPIO.output(LED3_GRN, LED_OFF)
         GPIO.output(LED0_RED, LED_ON)
+        GPIO.output(LED1_RED, LED_ON)
+        GPIO.output(LED2_RED, LED_ON)
+        GPIO.output(LED3_RED, LED_ON)
         panic()
 
 # Open log file
@@ -1097,7 +1106,6 @@ try:
 # after extended periods of operating time. See if this fixes
             pygame.mixer.init()
 
-# start roaming again            
             NO_PERSON_COUNT = 0
             P_DETECT_COUNT  = 0
             ROAM_COUNT = 0
@@ -1324,7 +1332,7 @@ try:
 ###########################
         if (PERSON_STATE == STATE_BURN):
             debug_print('STATE: BURN: Burn Hazard cnt: ' \
-                       +str(BURN_HAZARD_CNT)+' ROAM_COUNT = ' \
+                       +str(BURN_HAZARD_CNT)+' ROAM COUNT = ' \
                        +str(ROAM_COUNT))
             ROAM_COUNT = 0
             BURN_HAZARD_CNT += 1
@@ -1401,7 +1409,7 @@ try:
 #
         elif (PERSON_STATE == STATE_NOTHING):
             debug_print('STATE: NOTHING: No Person cnt: ' \
-                       +str(NO_PERSON_COUNT)+' ROAM_COUNT = ' \
+                       +str(NO_PERSON_COUNT)+' ROAM COUNT = ' \
                        +str(ROAM_COUNT)+' Hit Cnt = ' \
                        +str(HIT_COUNT)+' Prev Hit Cnt = ' \
                        +str(PREVIOUS_HIT_COUNT))
@@ -1464,7 +1472,6 @@ try:
 #     Event 2: More than one hit - state 2
 #
         elif (PERSON_STATE == STATE_POSSIBLE):
-            ROAM_COUNT = 0
             debug_print('STATE POSSIBLE cnt: ' \
                        +str(STATE_POSSIBLE_COUNT))
             BURN_HAZARD_CNT = 0
@@ -1509,7 +1516,6 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
         elif (PERSON_STATE == STATE_LIKELY):
-            ROAM_COUNT = 0
             BURN_HAZARD_CNT = 0
             STATE_LIKELY_COUNT += 1
             debug_print('STATE: LIKELY cnt: '+str(STATE_LIKELY_COUNT)+' No Person cnt: ' \
@@ -1559,7 +1565,6 @@ try:
             if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
                 detected_time_stamp = get_uptime()
                 debug_print('Person detected at '+str(detected_time_stamp))
-                ROAM_COUNT = 0
                 PERSON_STATE = STATE_DETECTED
                 if (PREV_PERSON_STATE == STATE_DETECTED):
                     PROBABLE_TO_DETECTED_COUNT += 1
