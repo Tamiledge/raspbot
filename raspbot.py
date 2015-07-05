@@ -880,9 +880,7 @@ try:
         GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
         SERVO_HANDLE = PWM.Servo()
         SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
-        print('')
-    else:
-        print('SERVO is off')
+        time.sleep(0.3)
 
     print ''
     if DEBUG:
