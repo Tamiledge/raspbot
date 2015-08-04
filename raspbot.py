@@ -40,7 +40,7 @@ from omron_src import omron_init    # contains omron functions
 from omron_src import omron_read    # contains omron functions
 #import urllib, pycurl, os           # needed for text to speech
 from pid import PID
-from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb, speakSpeechFromText
+from raspbot_functions import getCPUtemperature, fahrenheit_to_rgb, speakSpeechFromText, get_ram
 import RPi.GPIO as GPIO
 from RPIO import PWM        # for the servo motor
 
@@ -121,9 +121,9 @@ SERVO_TYPE = FITECH_MICRO_SERVO_FS90
 
 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
     MIN_SERVO_POSITION = 2300
-    MAX_SERVO_POSITION = 600
+    MAX_SERVO_POSITION = 700
 else:
-    MIN_SERVO_POSITION = 600
+    MIN_SERVO_POSITION = 700
     MAX_SERVO_POSITION = 2300
 
 SERVO_LIMIT_CW = MIN_SERVO_POSITION
@@ -874,6 +874,8 @@ try:
 # make some space
     print ''
 
+
+
     if SERVO_ENABLED:
 # Initialize servo position
         GPIO.setmode(GPIO.BOARD)
@@ -1054,15 +1056,17 @@ try:
 #############################
 # Main while loop
 #############################
+    ram_tuple = [0,0]
     while True:                 # The main loop
         MAIN_LOOP_COUNT += 1
         CPU_TEMP = getCPUtemperature()
+        ram_tuple = get_ram()
         debug_print('\r\n^^^^^^^^^^^^^^^^^^^^\r\n    MAIN_WHILE_LOOP: '\
                     +str(MAIN_LOOP_COUNT)+' Pcount: ' \
                     +str(P_DETECT_COUNT)+ \
                     ' Servo: '+str(SERVO_POSITION)+' CPU: '+ \
                     str(CPU_TEMP)+' Uptime(sec) = '+str(get_uptime())+ \
-                    '\r\n^^^^^^^^^^^^^^^^^^^^')
+                    ' Free RAM: '+str(ram_tuple[1])+'\r\n^^^^^^^^^^^^^^^^^^^^')
 # Check for overtemp
         if (CPU_TEMP >= 105.0):
             if CPU_105_ON:
@@ -1446,6 +1450,12 @@ try:
                         debug_print('Jumping back and forth between Nothing and Possible. Resetting Servo')
                         SERVO_POSITION = \
                             set_servo_to_position(CTR_SERVO_POSITION)
+# reverse the direction of roaming too
+                        if (servo_dir == SERVO_CUR_DIR_CCW):
+                            servo_dir = SERVO_CUR_DIR_CW
+                        else:
+                            servo_dir = SERVO_CUR_DIR_CCW
+
                         PERSON_STATE = STATE_NOTHING
                 else:
                     SERVO_POSITION = \
@@ -1479,7 +1489,7 @@ try:
             P_DETECT, PERSON_POSITION = \
                 person_position_2_hit(HIT_ARRAY, SERVO_POSITION)
             # stay in possible state
-            if (P_DETECT):
+            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
                 PERSON_STATE = STATE_LIKELY
                 if (PREV_PERSON_STATE == STATE_LIKELY):
                     POSSIBLE_TO_LIKELY_COUNT += 1
@@ -1489,6 +1499,11 @@ try:
                         debug_print('Jumping back and forth between Possible and Likely. Resetting Servo')
                         SERVO_POSITION = \
                             set_servo_to_position(CTR_SERVO_POSITION)
+# reverse the direction of roaming too
+                        if (servo_dir == SERVO_CUR_DIR_CCW):
+                            servo_dir = SERVO_CUR_DIR_CW
+                        else:
+                            servo_dir = SERVO_CUR_DIR_CCW
                         PERSON_STATE = STATE_NOTHING
                 else:
                     SERVO_POSITION = \
@@ -1523,7 +1538,7 @@ try:
             P_DETECT, PERSON_POSITION = \
                       person_position_x_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
-            if (P_DETECT):
+            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
                 PERSON_STATE = STATE_PROBABLE
                 if (PREV_PERSON_STATE == STATE_PROBABLE):
                     LIKELY_TO_PROBABLE_COUNT += 1
@@ -1533,6 +1548,11 @@ try:
                         debug_print('Jumping back and forth between Likely and Probable. Resetting Servo')
                         SERVO_POSITION = \
                             set_servo_to_position(CTR_SERVO_POSITION)
+# reverse the direction of roaming too
+                        if (servo_dir == SERVO_CUR_DIR_CCW):
+                            servo_dir = SERVO_CUR_DIR_CW
+                        else:
+                            servo_dir = SERVO_CUR_DIR_CCW
                         PERSON_STATE = STATE_NOTHING
                 else:
                     SERVO_POSITION = \
@@ -1572,6 +1592,11 @@ try:
                         debug_print('Jumping back and forth between Probable and Detected. Resetting Servo')
                         SERVO_POSITION = \
                             set_servo_to_position(CTR_SERVO_POSITION)
+# reverse the direction of roaming too
+                        if (servo_dir == SERVO_CUR_DIR_CCW):
+                            servo_dir = SERVO_CUR_DIR_CW
+                        else:
+                            servo_dir = SERVO_CUR_DIR_CCW
                         PERSON_STATE = STATE_NOTHING
                 else:
                     SERVO_POSITION = \
@@ -1695,12 +1720,15 @@ except KeyboardInterrupt:
     crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
 
 except IOError:
-    print 'I/O Error Exception!'
+    now_string = str(datetime.now())
+    print 'I/O Error Exception! Quitting at '+now_string
     GPIO.output(LED0_GRN, LED_OFF)
     GPIO.output(LED0_RED, LED_ON)
     # do not close the logfile here
     # allows the previous logfile to stay intact for a forensic analysis
-    debug_print('\r\nI/O Error; quitting')
     if SERVO_ENABLED:
         SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
+    py_game.quit()
+    PWM.cleanup()
+    sys.exit()
     panic()
