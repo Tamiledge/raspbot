@@ -1252,6 +1252,23 @@ try:
 
 # Instead of moving average, let's try bleeding of adjacent channels. e.g. 1010 would return 1110 and 1210 would return 2210
 
+        if (HIT_ARRAY[0] == 1 and HIT_ARRAY[1] == 0 and HIT_ARRAY[2] ==1 and HIT_ARRAY[3] == 0):
+            HIT_ARRAY[1] == 1
+        elif (HIT_ARRAY[0] == 0 and HIT_ARRAY[1] == 1 and HIT_ARRAY[2] ==0 and HIT_ARRAY[3] == 1):
+            HIT_ARRAY[2] == 1
+        elif (HIT_ARRAY[0] == 0 and HIT_ARRAY[1] >= 2 and HIT_ARRAY[2] ==0 and HIT_ARRAY[3] == 0):
+            HIT_ARRAY[0] == 2
+        elif (HIT_ARRAY[0] == 1 and HIT_ARRAY[1] >= 2 and HIT_ARRAY[2] ==0 and HIT_ARRAY[3] == 0):
+            HIT_ARRAY[0] == 2
+        elif (HIT_ARRAY[0] == 1 and HIT_ARRAY[1] >= 2 and HIT_ARRAY[2] ==1 and HIT_ARRAY[3] == 0):
+            HIT_ARRAY[0] == 2
+        elif (HIT_ARRAY[0] == 0 and HIT_ARRAY[1] >= 0 and HIT_ARRAY[2] ==2 and HIT_ARRAY[3] == 0):
+            HIT_ARRAY[3] == 2
+        elif (HIT_ARRAY[0] == 0 and HIT_ARRAY[1] >= 0 and HIT_ARRAY[2] ==2 and HIT_ARRAY[3] == 1):
+            HIT_ARRAY[3] == 2
+        elif (HIT_ARRAY[0] == 0 and HIT_ARRAY[1] >= 1 and HIT_ARRAY[2] ==2 and HIT_ARRAY[3] == 1):
+            HIT_ARRAY[3] == 2
+                        
         GPIO.output(LED0_RED, LED_OFF)
         GPIO.output(LED0_YEL, LED_OFF)
         GPIO.output(LED0_GRN, LED_OFF)
