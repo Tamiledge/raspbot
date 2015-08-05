@@ -92,11 +92,11 @@ CTR_SERVO_POSITION = 1500
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
-ROAMING_GRANULARTY = 40         # the distance moved during roaming
-MOVE_DIST_CLOSE = 30     
-MOVE_DIST_SHORT = 50      
-MOVE_DIST_MEDIUM = 75       
-MOVE_DIST_FAR = 100       
+ROAMING_GRANULARTY = 10         # the distance moved during roaming
+MOVE_DIST_CLOSE = 50     
+MOVE_DIST_SHORT = 75      
+MOVE_DIST_MEDIUM = 100       
+MOVE_DIST_FAR = 125       
 SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
 ROAM_MAX = 600          # Max number of times to roam between person
@@ -295,7 +295,7 @@ def print_temps(temp_list):
     debug_print("%.1f"%temp_list[15]+' '+"%.1f"%temp_list[11]+ \
                ' '+"%.1f"%temp_list[7]+' '+"%.1f"%temp_list[3]+' ')
 
-def set_servo_to_position (new_position):
+def set_servo_to_position(new_position):
     """
     Moves the servo to a new position
     """
@@ -327,7 +327,7 @@ def set_servo_to_position (new_position):
             ((new_position//MINIMUM_SERVO_GRANULARITY)+1) \
             *MINIMUM_SERVO_GRANULARITY
 
-        debug_print('SERVO_MOVE: '+str(final_position))
+        debug_print('set_servo_to_position: '+str(final_position))
         SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, final_position)
 
         return final_position
@@ -1125,11 +1125,13 @@ try:
 
         for event in pygame.event.get():
             if event.type == QUIT:
+                SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
                 CRASH_MSG = '\r\npygame event QUIT'
                 crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, \
                                LOGFILE_HANDLE)
             if event.type == KEYDOWN:
                 if event.key == K_q or event.key == K_ESCAPE:
+                    SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
                     CRASH_MSG = \
                     '\r\npygame event: keyboard q or esc pressed'
                     crash_and_burn(CRASH_MSG, pygame, \
@@ -1242,10 +1244,13 @@ try:
         HIT_ARRAY_MA3 = hstack_push(HIT_ARRAY_MA3, HIT_ARRAY[3])
 #        print HIT_ARRAY_MA3
 
-        HIT_ARRAY[0] = int(round(movingaverage(HIT_ARRAY_MA0,HAMA_SIZE)))
-        HIT_ARRAY[1] = int(round(movingaverage(HIT_ARRAY_MA1,HAMA_SIZE)))
-        HIT_ARRAY[2] = int(round(movingaverage(HIT_ARRAY_MA2,HAMA_SIZE)))
-        HIT_ARRAY[3] = int(round(movingaverage(HIT_ARRAY_MA3,HAMA_SIZE)))
+##        HIT_ARRAY[0] = int(round(movingaverage(HIT_ARRAY_MA0,HAMA_SIZE)))
+##        HIT_ARRAY[1] = int(round(movingaverage(HIT_ARRAY_MA1,HAMA_SIZE)))
+##        HIT_ARRAY[2] = int(round(movingaverage(HIT_ARRAY_MA2,HAMA_SIZE)))
+##        HIT_ARRAY[3] = int(round(movingaverage(HIT_ARRAY_MA3,HAMA_SIZE)))
+
+
+# Instead of moving average, let's try bleeding of adjacent channels. e.g. 1010 would return 1110 and 1210 would return 2210
 
         GPIO.output(LED0_RED, LED_OFF)
         GPIO.output(LED0_YEL, LED_OFF)
@@ -1437,7 +1442,7 @@ try:
 
 # check to see if there is a person there
             P_DETECT, PERSON_POSITION = \
-                person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
+                person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
 
 # if there is a person, go to the next state
             if (P_DETECT):
@@ -1448,13 +1453,32 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         NOTHING_TO_POSSIBLE_COUNT = 0
                         debug_print('Jumping back and forth between Nothing and Possible. Resetting Servo')
-                        SERVO_POSITION = \
-                            set_servo_to_position(CTR_SERVO_POSITION)
-# reverse the direction of roaming too
-                        if (servo_dir == SERVO_CUR_DIR_CCW):
-                            servo_dir = SERVO_CUR_DIR_CW
+                        P_DETECT, PERSON_POSITION = \
+                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
+                        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                            if SERVO_POSITION < MAX_SERVO_POSITION+50 or SERVO_POSITION >= MIN_SERVO_POSITION-50:
+                                PERSON_POSITION = CTR_SERVO_POSITION
+                            if SERVO_POSITION > PERSON_POSITION:    # fix roaming direction
+                                SERVO_DIRECTION = SERVO_CUR_DIR_CCW
+                            else:
+                                SERVO_DIRECTION = SERVO_CUR_DIR_CW
                         else:
-                            servo_dir = SERVO_CUR_DIR_CCW
+                            if SERVO_POSITION <= MIN_SERVO_POSITION+50 or SERVO_POSITION >= MAX_SERVO_POSITION-50:
+                                PERSON_POSITION = CTR_SERVO_POSITION
+                            if SERVO_POSITION > PERSON_POSITION:    # fix roaming direction
+                                SERVO_DIRECTION = SERVO_CUR_DIR_CW
+                            else:
+                                SERVO_DIRECTION = SERVO_CUR_DIR_CCW
+
+                        SERVO_POSITION = \
+                            set_servo_to_position(PERSON_POSITION)
+
+                        if SERVO_POSITION == CTR_SERVO_POSITION:
+# reverse the direction of roaming too
+                            if (SERVO_DIRECTION == SERVO_CUR_DIR_CCW):
+                                SERVO_DIRECTION = SERVO_CUR_DIR_CW
+                            else:
+                                SERVO_DIRECTION = SERVO_CUR_DIR_CCW
 
                         PERSON_STATE = STATE_NOTHING
                 else:
@@ -1497,13 +1521,15 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         POSSIBLE_TO_LIKELY_COUNT = 0
                         debug_print('Jumping back and forth between Possible and Likely. Resetting Servo')
+                        P_DETECT, PERSON_POSITION = \
+                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         SERVO_POSITION = \
-                            set_servo_to_position(CTR_SERVO_POSITION)
+                            set_servo_to_position(PERSON_POSITION)
 # reverse the direction of roaming too
-                        if (servo_dir == SERVO_CUR_DIR_CCW):
-                            servo_dir = SERVO_CUR_DIR_CW
+                        if (SERVO_DIRECTION == SERVO_CUR_DIR_CCW):
+                            SERVO_DIRECTION = SERVO_CUR_DIR_CW
                         else:
-                            servo_dir = SERVO_CUR_DIR_CCW
+                            SERVO_DIRECTION = SERVO_CUR_DIR_CCW
                         PERSON_STATE = STATE_NOTHING
                 else:
                     SERVO_POSITION = \
@@ -1546,13 +1572,15 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         LIKELY_TO_PROBABLE_COUNT = 0
                         debug_print('Jumping back and forth between Likely and Probable. Resetting Servo')
+                        P_DETECT, PERSON_POSITION = \
+                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         SERVO_POSITION = \
-                            set_servo_to_position(CTR_SERVO_POSITION)
+                            set_servo_to_position(PERSON_POSITION)
 # reverse the direction of roaming too
-                        if (servo_dir == SERVO_CUR_DIR_CCW):
-                            servo_dir = SERVO_CUR_DIR_CW
+                        if (SERVO_DIRECTION == SERVO_CUR_DIR_CCW):
+                            SERVO_DIRECTION = SERVO_CUR_DIR_CW
                         else:
-                            servo_dir = SERVO_CUR_DIR_CCW
+                            SERVO_DIRECTION = SERVO_CUR_DIR_CCW
                         PERSON_STATE = STATE_NOTHING
                 else:
                     SERVO_POSITION = \
@@ -1590,13 +1618,15 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         PROBABLE_TO_DETECTED_COUNT = 0
                         debug_print('Jumping back and forth between Probable and Detected. Resetting Servo')
+                        P_DETECT, PERSON_POSITION = \
+                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         SERVO_POSITION = \
-                            set_servo_to_position(CTR_SERVO_POSITION)
+                            set_servo_to_position(PERSON_POSITION)
 # reverse the direction of roaming too
-                        if (servo_dir == SERVO_CUR_DIR_CCW):
-                            servo_dir = SERVO_CUR_DIR_CW
+                        if (SERVO_DIRECTION == SERVO_CUR_DIR_CCW):
+                            SERVO_DIRECTION = SERVO_CUR_DIR_CW
                         else:
-                            servo_dir = SERVO_CUR_DIR_CCW
+                            SERVO_DIRECTION = SERVO_CUR_DIR_CCW
                         PERSON_STATE = STATE_NOTHING
                 else:
                     SERVO_POSITION = \
@@ -1722,13 +1752,28 @@ except KeyboardInterrupt:
 except IOError:
     now_string = str(datetime.now())
     print 'I/O Error Exception! Quitting at '+now_string
-    GPIO.output(LED0_GRN, LED_OFF)
-    GPIO.output(LED0_RED, LED_ON)
     # do not close the logfile here
     # allows the previous logfile to stay intact for a forensic analysis
     if SERVO_ENABLED:
         SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
-    py_game.quit()
-    PWM.cleanup()
-    sys.exit()
-    panic()
+        PWM.cleanup()
+    GPIO.output(LED0_GRN, LED_OFF)
+    GPIO.output(LED1_GRN, LED_OFF)
+    GPIO.output(LED2_GRN, LED_OFF)
+    GPIO.output(LED3_GRN, LED_OFF)
+    GPIO.output(LED0_YEL, LED_OFF)
+    GPIO.output(LED1_YEL, LED_OFF)
+    GPIO.output(LED2_YEL, LED_OFF)
+    GPIO.output(LED3_YEL, LED_OFF)
+    while True:
+        GPIO.output(LED0_RED, LED_ON)
+        GPIO.output(LED1_RED, LED_ON)
+        GPIO.output(LED2_RED, LED_ON)
+        GPIO.output(LED3_RED, LED_ON)
+        time.sleep(0.3)
+        GPIO.output(LED0_RED, LED_OFF)
+        GPIO.output(LED1_RED, LED_OFF)
+        GPIO.output(LED2_RED, LED_OFF)
+        GPIO.output(LED3_RED, LED_OFF)
+        time.sleep(0.3)
+
