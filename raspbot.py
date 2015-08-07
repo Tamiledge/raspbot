@@ -116,8 +116,9 @@ SERVO_DIRECTION = SERVO_CUR_DIR_CW
 # (2400 is full CW and 600 is full CCW)
 HITEC_HS55 = LOW_TO_HIGH_IS_CLOCKWISE   # Yellow, Red, Black wires
 FITECH_MICRO_SERVO_FS90 = LOW_TO_HIGH_IS_COUNTERCLOCKWISE   # org, red, brn
+HITEC_HS5055MG = LOW_TO_HIGH_IS_CLOCKWISE   # yellow, red, black
 
-SERVO_TYPE = FITECH_MICRO_SERVO_FS90
+SERVO_TYPE = HITEC_HS5055MG
 
 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
     MIN_SERVO_POSITION = 2300
@@ -247,6 +248,8 @@ NOTHING_TO_POSSIBLE_COUNT = 0
 PTLC_LIMIT = 3
 POSSIBLE_TO_LIKELY_COUNT = 0
 LTPC_LIMIT = 3
+POSSIBLE_TO_PROBABLE_COUNT = 0
+PTPC_LIMIT = 3
 LIKELY_TO_PROBABLE_COUNT = 0
 PTDC_LIMIT = 3
 PROBABLE_TO_DETECTED_COUNT = 0
@@ -771,6 +774,7 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
 
     py_game.quit()
     PWM.cleanup()
+    GPIO.cleanup()
     log_file.write(msg+' @ '+str(datetime.now()))
     log_file.close
     sys.exit()
@@ -1537,13 +1541,13 @@ try:
                 person_position_2_hit(HIT_ARRAY, SERVO_POSITION)
             # stay in possible state
             if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
-                PERSON_STATE = STATE_LIKELY
-                if (PREV_PERSON_STATE == STATE_LIKELY):
-                    POSSIBLE_TO_LIKELY_COUNT += 1
-                    if (POSSIBLE_TO_LIKELY_COUNT > PTLC_LIMIT):
+                PERSON_STATE = STATE_PROBABLE
+                if (PREV_PERSON_STATE == STATE_PROBABLE):
+                    POSSIBLE_TO_PROBABLE_COUNT += 1
+                    if (POSSIBLE_TO_PROBABLE_COUNT > PTPC_LIMIT):
 # reset the servo position if hits and we just came back from the next state
-                        POSSIBLE_TO_LIKELY_COUNT = 0
-                        debug_print('Jumping back and forth between Possible and Likely. Resetting Servo')
+                        POSSIBLE_TO_PROBABLE_COUNT = 0
+                        debug_print('Jumping back and forth between Possible and Probable. Resetting Servo')
                         P_DETECT, PERSON_POSITION = \
                             person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         SERVO_POSITION = \
@@ -1569,6 +1573,9 @@ try:
 
             PREV_PERSON_STATE = STATE_POSSIBLE
             
+#
+# NOTE: Likely state has been removed to speed up detection.
+#
 ###########################
 # Likely Person Detected
 ###########################
@@ -1663,7 +1670,7 @@ try:
                         SAID_HELLO = 1
                         SAID_GOODBYE = 0
             else:
-                PERSON_STATE = STATE_LIKELY
+                PERSON_STATE = STATE_POSSIBLE
 
             PREV_PERSON_STATE = STATE_PROBABLE
 
@@ -1799,4 +1806,5 @@ except IOError:
         GPIO.output(LED2_RED, LED_OFF)
         GPIO.output(LED3_RED, LED_OFF)
         time.sleep(0.3)
+    GPIO.cleanup()
 
