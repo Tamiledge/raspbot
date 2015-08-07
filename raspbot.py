@@ -460,6 +460,12 @@ def person_position_x_hit(hit_array_x, s_position):
           hit_array_x[3] > hit_array_x[0]):
         move_dist_x = MOVE_DIST_CLOSE
         move_cw_x = False
+    elif (hit_array_x[0] > 0 and \
+          hit_array_x[1] > 0 and \
+          hit_array_x[2] > 0 and \
+          hit_array_x[3] > 0):
+        move_dist_x = 0
+        move_cw_x = False
     else:
         # no person detected
         person_det_x = False
@@ -1782,7 +1788,7 @@ except IOError:
     GPIO.output(LED1_YEL, LED_OFF)
     GPIO.output(LED2_YEL, LED_OFF)
     GPIO.output(LED3_YEL, LED_OFF)
-    while True:
+    for g in range(0, 9):
         GPIO.output(LED0_RED, LED_ON)
         GPIO.output(LED1_RED, LED_ON)
         GPIO.output(LED2_RED, LED_ON)
