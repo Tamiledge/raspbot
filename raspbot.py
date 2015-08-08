@@ -26,11 +26,7 @@
 
 # Jan 2015
 """
-import smbus
-import sys
-#import getopt
-import pigpio
-import time
+import smbus, sys, os, pigpio, time
 from datetime import datetime
 from webcolors import name_to_rgb
 import pygame
@@ -236,8 +232,9 @@ STATE_LIKELY = 2
 STATE_PROBABLE = 3
 STATE_DETECTED = 4
 STATE_BURN = 5
+INITIAL_STATE = 100
 PERSON_STATE = STATE_NOTHING
-PREV_PERSON_STATE = STATE_NOTHING
+PREV_PERSON_STATE = INITIAL_STATE
 STATE_POSSIBLE_COUNT = 0
 STATE_LIKELY_COUNT = 0
 STATE_PROBABLE_COUNT = 0
@@ -631,7 +628,6 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         servo_pos = \
             set_servo_to_position(servo_pos)
 
-        # randomly select a color and light it up
         if (last_led == 0):
             lit = LED0_YEL
         elif (last_led == 1):
@@ -655,6 +651,16 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         debug_print('last LED = '+str(last_led)+' lit LED = '+str(lit))
 
     else:
+
+        if MONITOR and roam_cnt == ROAM_MAX+1:
+            SCREEN_DISPLAY.fill(name_to_rgb('black'), MESSAGE_AREA)
+            txt = FONT.render("sleeping...", 1, name_to_rgb('gray'))
+            txtpos = SCREEN_TEXT.get_rect()
+            txtpos.center = MESSAGE_AREA_XY
+            SCREEN_DISPLAY.blit(txt, txtpos)
+    # update the screen
+            pygame.display.update()
+
 # center the servo when roam max is hit
         servo_pos = \
             set_servo_to_position(CTR_SERVO_POSITION)
@@ -671,10 +677,10 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         GPIO.output(LED1_YEL, LED_OFF)
         GPIO.output(LED2_YEL, LED_OFF)
         GPIO.output(LED3_YEL, LED_OFF)
-        GPIO.output(LED0_GRN, LED_OFF)
-        GPIO.output(LED1_GRN, LED_OFF)
-        GPIO.output(LED2_GRN, LED_OFF)
-        GPIO.output(LED3_GRN, LED_OFF)
+        GPIO.output(LED0_GRN, LED_ON)
+        GPIO.output(LED1_GRN, LED_ON)
+        GPIO.output(LED2_GRN, LED_ON)
+        GPIO.output(LED3_GRN, LED_ON)
 
 # Check for a person hit
         P_DETECT, PERSON_POSITION = \
@@ -742,14 +748,16 @@ def play_sound(volume, message):
     Play an mp3 file
     """
 # commented next line thinking that it might be causing the garbling
-    # pygame.mixer.music.set_volume(volume)         
+    pygame.mixer.music.set_volume(volume)         
+#    os.system('mpg123 -q '+message+' &') - this crashes the python code
+# Old code
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
-# this is not causing the garbling
-    while pygame.mixer.music.get_busy() == True:
-        continue
+# something is causing the garbling after 24 hours of operation
+#    while pygame.mixer.music.get_busy() == True:
+#        continue
 
-def crash_and_burn(msg, py_game, servo_in, log_file):
+def crash_and_burn(msg, py_game, servo_in, log_file_handle):
     """
     Something bad happend; quit the program
     """
@@ -759,62 +767,27 @@ def crash_and_burn(msg, py_game, servo_in, log_file):
     if SERVO_ENABLED:
         servo_in.stop_servo(SERVO_GPIO_PIN)
     GPIO.output(LED_GPIO_PIN, LED_OFF)
-    GPIO.output(LED0_RED, LED_OFF)
+    GPIO.output(LED0_RED, LED_ON)
     GPIO.output(LED0_YEL, LED_OFF)
     GPIO.output(LED0_GRN, LED_OFF)
-    GPIO.output(LED1_RED, LED_OFF)
+    GPIO.output(LED1_RED, LED_ON)
     GPIO.output(LED1_YEL, LED_OFF)
     GPIO.output(LED1_GRN, LED_OFF)
-    GPIO.output(LED2_RED, LED_OFF)
+    GPIO.output(LED2_RED, LED_ON)
     GPIO.output(LED2_YEL, LED_OFF)
     GPIO.output(LED2_GRN, LED_OFF)
-    GPIO.output(LED3_RED, LED_OFF)
+    GPIO.output(LED3_RED, LED_ON)
     GPIO.output(LED3_YEL, LED_OFF)
     GPIO.output(LED3_GRN, LED_OFF)
+    cleanup_and_exit(msg, log_file_handle)
 
-    py_game.quit()
+def cleanup_and_exit(msg, log_file_handle):
+    pygame.quit()
     PWM.cleanup()
     GPIO.cleanup()
-    log_file.write(msg+' @ '+str(datetime.now()))
-    log_file.close
+    log_file_handle.write(msg+' @ '+str(datetime.now()))
+    log_file_handle.close
     sys.exit()
-
-def panic():
-# doing a print here makes sure that the stdout gets a message
-    print('panic!')
-    debug_print('Panic!')
-    GPIO.output(LED0_GRN, LED_OFF)
-    GPIO.output(LED1_GRN, LED_OFF)
-    GPIO.output(LED2_GRN, LED_OFF)
-    GPIO.output(LED3_GRN, LED_OFF)
-    GPIO.output(LED0_YEL, LED_OFF)
-    GPIO.output(LED1_YEL, LED_OFF)
-    GPIO.output(LED2_YEL, LED_OFF)
-    GPIO.output(LED3_YEL, LED_OFF)
-    if SERVO_ENABLED:
-        SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
-    while True:
-        GPIO.output(LED0_RED, LED_ON)
-        GPIO.output(LED1_RED, LED_ON)
-        GPIO.output(LED2_RED, LED_ON)
-        GPIO.output(LED3_RED, LED_ON)
-        time.sleep(0.3)
-        GPIO.output(LED0_RED, LED_OFF)
-        GPIO.output(LED1_RED, LED_OFF)
-        GPIO.output(LED2_RED, LED_OFF)
-        GPIO.output(LED3_RED, LED_OFF)
-        time.sleep(0.3)
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                CRASH_MSG = '\r\npygame event QUIT'
-                crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, \
-                               LOGFILE_HANDLE)
-            if event.type == KEYDOWN:
-                if event.key == K_q or event.key == K_ESCAPE:
-                    CRASH_MSG = \
-                    '\r\npygame event: keyboard q or esc pressed'
-                    crash_and_burn(CRASH_MSG, pygame, \
-                                   SERVO_HANDLE, LOGFILE_HANDLE)
 
 def hstack_push(array, element):
     """
@@ -828,6 +801,11 @@ def hstack_push(array, element):
     new_array[0] = element                  # enter new data
 #    print 'new_array[0] = '+str(element)
     return new_array    
+
+def init_pygame():
+    pygame.init()
+    pygame.mixer.init()
+
 
 GPIO.setwarnings(False) # turn off warnings about DMA channel in use
 GPIO.setmode(GPIO.BOARD)
@@ -872,9 +850,8 @@ if "-help" in sys.argv:
     print '-rand:    when roaming randomize the head movement'
     sys.exit()
 
-# Initialize screen
-pygame.init()
-FONT = pygame.font.Font(None, 36)
+# Initialize pygame
+init_pygame()
 
 try:
 # Initialize i2c bus address
@@ -952,7 +929,7 @@ try:
         GPIO.output(LED1_RED, LED_ON)
         GPIO.output(LED2_RED, LED_ON)
         GPIO.output(LED3_RED, LED_ON)
-        panic()
+        crash_and_burn()
 
 # Open log file
 
@@ -978,9 +955,6 @@ try:
     debug_print('PiGPIO version = '+str(PIGPIO_VERSION))
     debug_print('Omron 1 sensor result = '+str(OMRON1_RESULT))
     debug_print('Max CW: '+str(SERVO_LIMIT_CW)+' Max CCW: '+str(SERVO_LIMIT_CCW))
-
-# initialze the music player
-    pygame.mixer.init()
 
     if CALIBRATION:
         debug_print('SERVO is on - you have 20 seconds to calibrate the bot head')
@@ -1034,6 +1008,7 @@ try:
         
 # setup the IR color window
     if MONITOR:
+        FONT = pygame.font.Font(None, 36)
         SCREEN_DISPLAY = pygame.display.set_mode(SCREEN_DIMENSIONS)
         pygame.display.set_caption('IR temp array')
 
@@ -1116,7 +1091,8 @@ try:
 
 # reinitialize the mixer; for some reason the audio drops out
 # after extended periods of operating time. See if this fixes
-            pygame.mixer.init()
+#            pygame.mixer.init()
+# it didn't fix the garbling
 
             NO_PERSON_COUNT = 0
             P_DETECT_COUNT  = 0
@@ -1163,13 +1139,13 @@ try:
             debug_print( \
                 'ERROR: Omron thermal sensor failure! Bytes read: '\
                 +str(BYTES_READ))
-            panic()
+            crash_and_burn()
 
         if (ROOM_TEMP >= HUMAN_TEMP_MIN):
             HUMAN_TEMP_MIN = ROOM_TEMP + TEMPMARGIN
             
-# testing panic
-#        panic()
+# testing crash_and_burn
+#        crash_and_burn()
         
 ###########################
 # Analyze sensor data
@@ -1352,7 +1328,7 @@ try:
             SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
                                 MIN_TEMP, ROOM_TEMP), \
                                 ROOM_TEMP_AREA)
-            SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP, 1, \
+            SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP+" Person >= %.1f"%HUMAN_TEMP_MIN, 1, \
                                 name_to_rgb('navy'))
             SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
             SCREEN_TEXT_POS.center = ROOM_TEMP_MSG_XY
@@ -1450,7 +1426,7 @@ try:
             NO_PERSON_COUNT += 1
             P_DETECT_COUNT = 0
             BURN_HAZARD_CNT = 0
-            if MONITOR:
+            if MONITOR and PREV_PERSON_STATE != STATE_NOTHING:
                 SCREEN_DISPLAY.fill(name_to_rgb('white'), \
                                     MESSAGE_AREA)
                 SCREEN_TEXT = FONT.render("Waiting...", 1, \
