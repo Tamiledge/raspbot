@@ -665,6 +665,7 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         servo_pos = \
             set_servo_to_position(CTR_SERVO_POSITION)
 
+        SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
 ##        time.sleep(0.3)
 ##        if SERVO_ENABLED:
 ##            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
@@ -806,15 +807,6 @@ def init_pygame():
     pygame.init()
     pygame.mixer.init()
 
-
-GPIO.setwarnings(False) # turn off warnings about DMA channel in use
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
-GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
-GPIO.setup(BADGE_GPIO_PIN, GPIO.IN, GPIO.PUD_OFF)
-
-PWM.set_loglevel(PWM.LOG_LEVEL_ERRORS) # turn off debug msgs
-
 ###############################
 #
 # Start of main line program
@@ -858,10 +850,17 @@ try:
     I2C_BUS = smbus.SMBus(1)
     time.sleep(0.1)                # Wait
 
+    GPIO.setwarnings(False) # turn off warnings about DMA channel in use
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(SERVO_GPIO_PIN, GPIO.OUT)
+    GPIO.setup(LED_GPIO_PIN, GPIO.OUT)
+    GPIO.setup(BADGE_GPIO_PIN, GPIO.IN, GPIO.PUD_OFF)
+
+    if MONITOR == 0:
+        PWM.set_loglevel(PWM.LOG_LEVEL_ERRORS) # turn off debug msgs
+
 # make some space
     print ''
-
-
 
     if SERVO_ENABLED:
 # Initialize servo position
@@ -1141,8 +1140,8 @@ try:
                 +str(BYTES_READ))
             crash_and_burn()
 
-        if (ROOM_TEMP >= HUMAN_TEMP_MIN):
-            HUMAN_TEMP_MIN = ROOM_TEMP + TEMPMARGIN
+#        if (ROOM_TEMP >= HUMAN_TEMP_MIN):
+        HUMAN_TEMP_MIN = ROOM_TEMP + TEMPMARGIN
             
 # testing crash_and_burn
 #        crash_and_burn()
