@@ -88,14 +88,14 @@ CTR_SERVO_POSITION = 1500
 MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
-ROAMING_GRANULARTY = 10         # the distance moved during roaming
+ROAMING_GRANULARTY = 20         # the distance moved during roaming
 MOVE_DIST_CLOSE = 100     
-MOVE_DIST_SHORT = 200      
-MOVE_DIST_MEDIUM = 300       
-MOVE_DIST_FAR = 400       
+MOVE_DIST_SHORT = 160      
+MOVE_DIST_MEDIUM = 220       
+MOVE_DIST_FAR = 300       
 SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
-ROAM_MAX = 600          # Max number of times to roam between person
+ROAM_MAX = 6         # Max number of times to roam between person
                         # detections (roughly 0.5 seconds between roams
 ROAM_COUNT = 0 # keep track of head roams so that we can turn it off
 # initialize the servo to face directly forward
@@ -160,7 +160,7 @@ OMRON_ERROR_COUNT = 0
 OMRON_READ_COUNT = 0
 
 # Audio constants
-MAX_VOLUME = 1.0            # maximum speaker volume for pygame.mixer
+MAX_VOLUME = 1.0            # maximum speaker volume
 
 # Temperature constants
 DEGREE_UNIT = 'F'           # F = Farenheit, C=Celcius
@@ -281,6 +281,17 @@ def debug_print(message):
     if DEBUG and MONITOR:
         print now_string+': '+message
     LOGFILE_HANDLE.write('\r\n'+now_string+': '+message)
+    
+def announce(message):
+    """
+    Announce messages are printed to display and log file when something special happens
+    """
+    now_string = str(datetime.now())
+    if DEBUG and MONITOR:
+        print now_string+': '
+        print '\r\n****** '+message+' ******\r\n'
+    LOGFILE_HANDLE.write('\r\n'+now_string+': ')
+    LOGFILE_HANDLE.write('\r\n****** '+message+' ******\r\n')
     
 def print_temps(temp_list):
     """
@@ -578,20 +589,20 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
             if (servo_pos <= SERVO_LIMIT_CCW and \
                 servo_dir == SERVO_CUR_DIR_CCW):
-                debug_print('CCW -> CW')
+                announce('CCW -> CW')
                 servo_dir = SERVO_CUR_DIR_CW
             elif (servo_pos >= SERVO_LIMIT_CW and \
                 servo_dir == SERVO_CUR_DIR_CW):
-                debug_print('CW -> CCW')
+                announce('CW -> CCW')
                 servo_dir = SERVO_CUR_DIR_CCW
         else:
             if (servo_pos >= SERVO_LIMIT_CCW and \
                 servo_dir == SERVO_CUR_DIR_CCW):
-                debug_print('CCW -> CW')
+                announce('CCW -> CW')
                 servo_dir = SERVO_CUR_DIR_CW
             elif (servo_pos <= SERVO_LIMIT_CW and \
                 servo_dir == SERVO_CUR_DIR_CW):
-                debug_print('CW -> CCW')
+                announce('CW -> CCW')
                 servo_dir = SERVO_CUR_DIR_CCW
 
         # determine next servo position    
@@ -674,14 +685,20 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         GPIO.output(LED1_RED, LED_OFF)
         GPIO.output(LED2_RED, LED_OFF)
         GPIO.output(LED3_RED, LED_OFF)
-        GPIO.output(LED0_YEL, LED_OFF)
-        GPIO.output(LED1_YEL, LED_OFF)
-        GPIO.output(LED2_YEL, LED_OFF)
-        GPIO.output(LED3_YEL, LED_OFF)
-        GPIO.output(LED0_GRN, LED_ON)
-        GPIO.output(LED1_GRN, LED_ON)
-        GPIO.output(LED2_GRN, LED_ON)
-        GPIO.output(LED3_GRN, LED_ON)
+        GPIO.output(LED0_GRN, LED_OFF)
+        GPIO.output(LED1_GRN, LED_OFF)
+        GPIO.output(LED2_GRN, LED_OFF)
+        GPIO.output(LED3_GRN, LED_OFF)
+        if (roam_cnt%2 == 0):
+            GPIO.output(LED0_YEL, LED_ON)
+            GPIO.output(LED1_YEL, LED_ON)
+            GPIO.output(LED2_YEL, LED_ON)
+            GPIO.output(LED3_YEL, LED_ON)
+        else:
+            GPIO.output(LED0_YEL, LED_OFF)
+            GPIO.output(LED1_YEL, LED_OFF)
+            GPIO.output(LED2_YEL, LED_OFF)
+            GPIO.output(LED3_YEL, LED_OFF)
 
 # Check for a person hit
         P_DETECT, PERSON_POSITION = \
@@ -804,9 +821,10 @@ def hstack_push(array, element):
     return new_array    
 
 def init_pygame():
+    pygame.mixer.pre_init(44100,-16,1, 1024) # set for mono
     pygame.init()
     pygame.mixer.init()
-
+    
 ###############################
 #
 # Start of main line program
@@ -1040,6 +1058,7 @@ try:
 #############################
 # Main while loop
 #############################
+    play_sound(MAX_VOLUME, HELLO_FILE_NAME)
     ram_tuple = [0,0]
     while True:                 # The main loop
         MAIN_LOOP_COUNT += 1
