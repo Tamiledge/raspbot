@@ -95,7 +95,7 @@ MOVE_DIST_MEDIUM = 220
 MOVE_DIST_FAR = 300       
 SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
-ROAM_MAX = 6         # Max number of times to roam between person
+ROAM_MAX = 600         # Max number of times to roam between person
                         # detections (roughly 0.5 seconds between roams
 ROAM_COUNT = 0 # keep track of head roams so that we can turn it off
 # initialize the servo to face directly forward
@@ -581,7 +581,7 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     """
     roam_cnt += 1
     GPIO.output(lit, LED_OFF)
-    debug_print('Roam count = '+str(roam_cnt))
+#    debug_print('Roam count = '+str(roam_cnt))
 
     if roam_cnt <= ROAM_MAX:
         
@@ -659,10 +659,10 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
             if (last_led >= LED_POS_MAX):
                 last_led = 0
 
-        debug_print('last LED = '+str(last_led)+' lit LED = '+str(lit))
+#        debug_print('last LED = '+str(last_led)+' lit LED = '+str(lit))
 
     else:
-
+        announce("Roam count hit max: "+str(ROAM_MAX))
         if MONITOR and roam_cnt == ROAM_MAX+1:
             SCREEN_DISPLAY.fill(name_to_rgb('black'), MESSAGE_AREA)
             txt = FONT.render("sleeping...", 1, name_to_rgb('gray'))
