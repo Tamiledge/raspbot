@@ -26,7 +26,7 @@
 
 # Jan 2015
 """
-import smbus, sys, os, pigpio, time
+import smbus, sys, os, pigpio, time, numpy
 from datetime import datetime
 from webcolors import name_to_rgb
 import pygame
@@ -169,9 +169,10 @@ MAX_TEMP = 200          # maximum expected temperature in Fahrenheit
 TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST # holds the recently measured temperature
 HUMAN_TEMP_MIN = 82     # Human temp min empirically measured at 3 feet away
 HUMAN_TEMP_MAX = 98     # Human temp max if they don't have the flu
-TEMPMARGIN = 4          # degrees > than room temp to detect person
+SENSITIVITY = 3          # degrees > than room temp to detect person
+SAMPLED_AVERAGE_TEMP = HUMAN_TEMP_MIN - SENSITIVITY
 
-BURN_HAZARD_TEMP = HUMAN_TEMP_MAX + TEMPMARGIN  # temperature at which a warning is given
+BURN_HAZARD_TEMP = 101  # temperature at which a warning is given
 BURN_HAZARD_CNT = 0     # number of times burn hazard detected
 BURN_HAZARD_HIT = 10    # Number used in Hit array to indicate hazard
 
@@ -662,6 +663,9 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 #        debug_print('last LED = '+str(last_led)+' lit LED = '+str(lit))
 
     else:
+# reinitialize sensitivity threshold
+        SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
+
         announce("Roam count hit max: "+str(ROAM_MAX))
         if MONITOR and roam_cnt == ROAM_MAX+1:
             SCREEN_DISPLAY.fill(name_to_rgb('black'), MESSAGE_AREA)
@@ -824,7 +828,7 @@ def init_pygame():
     pygame.mixer.pre_init(44100,-16,1, 1024) # set for mono
     pygame.init()
     pygame.mixer.init()
-    
+
 ###############################
 #
 # Start of main line program
@@ -1055,6 +1059,22 @@ try:
                         (SCREEN_DIMENSIONS[1]/6)+ \
                         (SCREEN_DIMENSIONS[1]/12)+SCREEN_DIMENSIONS[0])
 
+# Establish the initial background temperature for sensitivity
+# 
+        (BYTES_READ, TEMPERATURE_ARRAY, ROOM_TEMP) = \
+            omron_read(OMRON1_HANDLE, DEGREE_UNIT, \
+            OMRON_BUFFER_LENGTH, PIGPIO_HANDLE)
+        OMRON_READ_COUNT += 1
+     
+        if BYTES_READ != OMRON_BUFFER_LENGTH: # sensor problem
+            OMRON_ERROR_COUNT += 1
+            debug_print( \
+                'ERROR: Omron thermal sensor failure! Bytes read: '\
+                +str(BYTES_READ))
+            crash_and_burn()
+            
+        SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
+
 #############################
 # Main while loop
 #############################
@@ -1160,7 +1180,8 @@ try:
             crash_and_burn()
 
 #        if (ROOM_TEMP >= HUMAN_TEMP_MIN):
-        HUMAN_TEMP_MIN = ROOM_TEMP + TEMPMARGIN
+#        HUMAN_TEMP_MIN = ROOM_TEMP + SENSITIVITY
+        HUMAN_TEMP_MIN = SAMPLED_AVERAGE_TEMP + SENSITIVITY
             
 # testing crash_and_burn
 #        crash_and_burn()
@@ -1436,11 +1457,16 @@ try:
 #     Event 1: One or more sensors cross the person threshold
 #
         elif (PERSON_STATE == STATE_NOTHING):
-            debug_print('STATE: NOTHING: No Person cnt: ' \
-                       +str(NO_PERSON_COUNT)+' ROAM COUNT = ' \
-                       +str(ROAM_COUNT)+' Hit Cnt = ' \
-                       +str(HIT_COUNT)+' Prev Hit Cnt = ' \
-                       +str(PREVIOUS_HIT_COUNT))
+            SENSITIVITY = 3
+            debug_print('STATE: NOTHING: No Person cnt: '+str(NO_PERSON_COUNT) \
+                       +' ROAM COUNT = '+str(ROAM_COUNT) \
+                       +' Hit Cnt = '+str(HIT_COUNT) \
+                       +' Prev Hit Cnt = '+str(PREVIOUS_HIT_COUNT) \
+                       +' sensitivity = '+str(SENSITIVITY) \
+                       +' p_detect_count = '+str(P_DETECT_COUNT) \
+                       +' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY) \
+                       +' Servo pos: '+str(SERVO_POSITION)
+                       +' CPU Temp: '+str(CPU_TEMP))
             NO_PERSON_COUNT += 1
             P_DETECT_COUNT = 0
             BURN_HAZARD_CNT = 0
@@ -1525,8 +1551,16 @@ try:
 #     Event 2: More than one hit - state 2
 #
         elif (PERSON_STATE == STATE_POSSIBLE):
-            debug_print('STATE POSSIBLE cnt: ' \
-                       +str(STATE_POSSIBLE_COUNT))
+            SENSITIVITY = 2
+            debug_print('STATE POSSIBLE cnt: '+str(STATE_POSSIBLE_COUNT) \
+                       +' ROAM COUNT = '+str(ROAM_COUNT) \
+                       +' Hit Cnt = '+str(HIT_COUNT) \
+                       +' Prev Hit Cnt = '+str(PREVIOUS_HIT_COUNT) \
+                       +' sensitivity = '+str(SENSITIVITY) \
+                       +' p_detect_count = '+str(P_DETECT_COUNT) \
+                       +' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY) \
+                       +' Servo pos: '+str(SERVO_POSITION)
+                       +' CPU Temp: '+str(CPU_TEMP))
             BURN_HAZARD_CNT = 0
             STATE_POSSIBLE_COUNT += 1
             NO_PERSON_COUNT += 1
@@ -1579,10 +1613,18 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
         elif (PERSON_STATE == STATE_LIKELY):
+            SENSITIVITY = 2
             BURN_HAZARD_CNT = 0
             STATE_LIKELY_COUNT += 1
-            debug_print('STATE: LIKELY cnt: '+str(STATE_LIKELY_COUNT)+' No Person cnt: ' \
-                        +str(NO_PERSON_COUNT))
+            debug_print('STATE: LIKELY cnt: '+str(STATE_LIKELY_COUNT) \
+                       +' ROAM COUNT = '+str(ROAM_COUNT) \
+                       +' Hit Cnt = '+str(HIT_COUNT) \
+                       +' Prev Hit Cnt = '+str(PREVIOUS_HIT_COUNT) \
+                       +' sensitivity = '+str(SENSITIVITY) \
+                       +' p_detect_count = '+str(P_DETECT_COUNT) \
+                       +' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY) \
+                       +' Servo pos: '+str(SERVO_POSITION)
+                       +' CPU Temp: '+str(CPU_TEMP))
             NO_PERSON_COUNT += 1
 
             P_DETECT, PERSON_POSITION = \
@@ -1624,10 +1666,18 @@ try:
 #     Event 2: more than one sensor has a hit, move head, say hello
 #
         elif (PERSON_STATE == STATE_PROBABLE):
+            SENSITIVITY = 2
             BURN_HAZARD_CNT = 0
             STATE_PROBABLE_COUNT += 1
-            debug_print('STATE: PROBABLE count: ' \
-                        +str(STATE_PROBABLE_COUNT))
+            debug_print('STATE: PROBABLE count: '+str(STATE_PROBABLE_COUNT) \
+                       +' ROAM COUNT = '+str(ROAM_COUNT) \
+                       +' Hit Cnt = '+str(HIT_COUNT) \
+                       +' Prev Hit Cnt = '+str(PREVIOUS_HIT_COUNT) \
+                       +' sensitivity = '+str(SENSITIVITY) \
+                       +' p_detect_count = '+str(P_DETECT_COUNT) \
+                       +' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY) \
+                       +' Servo pos: '+str(SERVO_POSITION)
+                       +' CPU Temp: '+str(CPU_TEMP))
 
             P_DETECT, PERSON_POSITION = \
                       person_position_x_hit(HIT_ARRAY, \
@@ -1677,11 +1727,16 @@ try:
 #     Event 2: more than one sensor, move head to position, stay
 #     
         elif (PERSON_STATE == STATE_DETECTED):
-            debug_print('STATE: DETECTED count: ' \
-                       +str(P_DETECT_COUNT)+
-                       ' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY)+ \
-                       ' Servo pos: '+str(SERVO_POSITION)+' CPU Temp: ' \
-                       +str(CPU_TEMP))
+            SENSITIVITY = 3
+            debug_print('STATE: DETECTED count: '+str(STATE_DETECTED_COUNT) \
+                       +' ROAM COUNT = '+str(ROAM_COUNT) \
+                       +' Hit Cnt = '+str(HIT_COUNT) \
+                       +' Prev Hit Cnt = '+str(PREVIOUS_HIT_COUNT) \
+                       +' sensitivity = '+str(SENSITIVITY) \
+                       +' p_detect_count = '+str(P_DETECT_COUNT) \
+                       +' Max temp in array: '+"%.1f"%max(TEMPERATURE_ARRAY) \
+                       +' Servo pos: '+str(SERVO_POSITION)
+                       +' CPU Temp: '+str(CPU_TEMP))
 
             BURN_HAZARD_CNT = 0
             STATE_POSSIBLE_COUNT = 0
