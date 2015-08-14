@@ -664,10 +664,9 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 
     else:
 # reinitialize sensitivity threshold
-        SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
-
         announce("Roam count hit max: "+str(ROAM_MAX))
         if MONITOR and roam_cnt == ROAM_MAX+1:
+            SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
             SCREEN_DISPLAY.fill(name_to_rgb('black'), MESSAGE_AREA)
             txt = FONT.render("sleeping...", 1, name_to_rgb('gray'))
             txtpos = SCREEN_TEXT.get_rect()
@@ -1074,6 +1073,7 @@ try:
             crash_and_burn()
             
         SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
+        HUMAN_TEMP_MIN = SAMPLED_AVERAGE_TEMP + SENSITIVITY
 
 #############################
 # Main while loop
@@ -1091,22 +1091,22 @@ try:
                     str(CPU_TEMP)+' Uptime(sec) = '+str(get_uptime())+ \
                     ' Free RAM: '+str(ram_tuple[1])+'\r\n^^^^^^^^^^^^^^^^^^^^')
 # Check for overtemp
-        if (CPU_TEMP >= 105.0):
-            if CPU_105_ON:
-                play_sound(MAX_VOLUME, CPU_105_FILE_NAME)
-#                    debug_print('Played 105 audio')
-        elif (CPU_TEMP >= 110.0):
-            play_sound(MAX_VOLUME, CPU_110_FILE_NAME)
-#                debug_print('Played 110 audio')
-        elif (CPU_TEMP >= 115.0):
-            play_sound(MAX_VOLUME, CPU_115_FILE_NAME)
-#                debug_print('Played 115 audio')
-        elif (CPU_TEMP >= 120.0):
-            play_sound(MAX_VOLUME, CPU_120_FILE_NAME)
-#                debug_print('Played 120 audio')
-        elif (CPU_TEMP >= 125.0):
-            play_sound(MAX_VOLUME, CPU_125_FILE_NAME)
-#                debug_print('Played 125 audio')
+##        if (CPU_TEMP >= 105.0):
+##            if CPU_105_ON:
+##                play_sound(MAX_VOLUME, CPU_105_FILE_NAME)
+##                debug_print('Played 105 audio')
+##        elif (CPU_TEMP >= 110.0):
+##            play_sound(MAX_VOLUME, CPU_110_FILE_NAME)
+##            debug_print('Played 110 audio')
+##        elif (CPU_TEMP >= 115.0):
+##            play_sound(MAX_VOLUME, CPU_115_FILE_NAME)
+##            debug_print('Played 115 audio')
+##        elif (CPU_TEMP >= 120.0):
+##            play_sound(MAX_VOLUME, CPU_120_FILE_NAME)
+##            debug_print('Played 120 audio')
+##        elif (CPU_TEMP >= 125.0):
+##            play_sound(MAX_VOLUME, CPU_125_FILE_NAME)
+##            debug_print('Played 125 audio')
 
 # periododically, write the log file to disk
         if MAIN_LOOP_COUNT >= LOG_MAX:
@@ -1181,7 +1181,6 @@ try:
 
 #        if (ROOM_TEMP >= HUMAN_TEMP_MIN):
 #        HUMAN_TEMP_MIN = ROOM_TEMP + SENSITIVITY
-        HUMAN_TEMP_MIN = SAMPLED_AVERAGE_TEMP + SENSITIVITY
             
 # testing crash_and_burn
 #        crash_and_burn()
@@ -1232,6 +1231,9 @@ try:
                     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         # go through each array element to find person "hits"
         # max hit count is 4 unless there is a burn hazard
+
+        HUMAN_TEMP_MIN = SAMPLED_AVERAGE_TEMP + SENSITIVITY
+
         for element in range(0, OMRON_DATA_LIST):
             if (TEMPERATURE_ARRAY[element] > \
                 BURN_HAZARD_TEMP):
@@ -1755,6 +1757,7 @@ try:
 
             uptime_now = get_uptime()
             if (uptime_now - detected_time_stamp) >= EXERSIZE_TIMEOUT:
+                SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
                 play_sound(MAX_VOLUME, STRETCH_FILE_NAME)
                 detected_time_stamp = uptime_now    # reset
                 for b in range(0, EXERSIZE_TIMEOUT_BLINKS):
