@@ -667,6 +667,7 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         announce("Roam count hit max: "+str(ROAM_MAX))
         if MONITOR and roam_cnt == ROAM_MAX+1:
             SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
+            debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
             SCREEN_DISPLAY.fill(name_to_rgb('black'), MESSAGE_AREA)
             txt = FONT.render("sleeping...", 1, name_to_rgb('gray'))
             txtpos = SCREEN_TEXT.get_rect()
@@ -1073,6 +1074,7 @@ try:
             crash_and_burn()
             
         SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
+        debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
         HUMAN_TEMP_MIN = SAMPLED_AVERAGE_TEMP + SENSITIVITY
 
 #############################
@@ -1110,6 +1112,9 @@ try:
 
 # periododically, write the log file to disk
         if MAIN_LOOP_COUNT >= LOG_MAX:
+
+            SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
+
             debug_print('\r\nLoop count max reached (' \
                 +str(MAIN_LOOP_COUNT)+' at '+str(datetime.now()))
             MAIN_LOOP_COUNT = 0      # reset the counter
@@ -1122,7 +1127,9 @@ try:
             debug_print(LOGFILE_OPEN_STRING)
             debug_print(LOGFILE_ARGS_STRING)
             debug_print(LOGFILE_TEMP_STRING)
-            debug_print('person temp threshold = ' \
+            debug_print('room temp: '+str(ROOM_TEMP))
+            debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
+            debug_print('human temp threshold = ' \
                        +str(HUMAN_TEMP_MIN))
 # Display the Omron internal temperature
             debug_print('Servo Type: '+str(SERVO_TYPE))
@@ -1233,6 +1240,10 @@ try:
         # max hit count is 4 unless there is a burn hazard
 
         HUMAN_TEMP_MIN = SAMPLED_AVERAGE_TEMP + SENSITIVITY
+        debug_print('room temp: '+str(ROOM_TEMP))
+        debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
+        debug_print('human temp threshold = ' \
+                   +str(HUMAN_TEMP_MIN))
 
         for element in range(0, OMRON_DATA_LIST):
             if (TEMPERATURE_ARRAY[element] > \
@@ -1494,7 +1505,7 @@ try:
                 person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
 
 # if there is a person, go to the next state
-            if (P_DETECT):
+            if (P_DETECT and HIT_COUNT > 3):    # must have some hits > 1 to get next state
                 PERSON_STATE = STATE_POSSIBLE
                 if (PREV_PERSON_STATE == STATE_POSSIBLE):
                     NOTHING_TO_POSSIBLE_COUNT += 1
@@ -1758,6 +1769,7 @@ try:
             uptime_now = get_uptime()
             if (uptime_now - detected_time_stamp) >= EXERSIZE_TIMEOUT:
                 SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
+                debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
                 play_sound(MAX_VOLUME, STRETCH_FILE_NAME)
                 detected_time_stamp = uptime_now    # reset
                 for b in range(0, EXERSIZE_TIMEOUT_BLINKS):
