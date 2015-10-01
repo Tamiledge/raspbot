@@ -89,10 +89,10 @@ MINIMUM_SERVO_GRANULARITY = 10  # microseconds
 SERVO_CUR_DIR_CW = 1            # Direction to move the servo next
 SERVO_CUR_DIR_CCW = 2
 ROAMING_GRANULARTY = 20         # the distance moved during roaming
-MOVE_DIST_CLOSE = 100     
-MOVE_DIST_SHORT = 160      
-MOVE_DIST_MEDIUM = 220       
-MOVE_DIST_FAR = 300       
+MOVE_DIST_CLOSE = 50     
+MOVE_DIST_SHORT = 80      
+MOVE_DIST_MEDIUM = 130       
+MOVE_DIST_FAR = 180       
 SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
 ROAM_MAX = 600         # Max number of times to roam between person
@@ -1507,7 +1507,8 @@ try:
                 person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
 
 # if there is a person, go to the next state
-            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):    # must have some hits > 1 to get next state
+#            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):    # must have some hits > 1 to get next state
+            if (P_DETECT):    # must have some hits > 1 to get next state
                 PERSON_STATE = STATE_POSSIBLE
                 if (PREV_PERSON_STATE == STATE_POSSIBLE):
                     NOTHING_TO_POSSIBLE_COUNT += 1
@@ -1547,6 +1548,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
+                time.sleep(0.3)
             else:
 # if no person detected, stay in this state
                 PERSON_STATE = STATE_NOTHING
@@ -1583,7 +1585,8 @@ try:
             P_DETECT, PERSON_POSITION = \
                 person_position_2_hit(HIT_ARRAY, SERVO_POSITION)
             # stay in possible state
-            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
+#            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
+            if (P_DETECT):
                 PERSON_STATE = STATE_PROBABLE
                 if (PREV_PERSON_STATE == STATE_PROBABLE):
                     POSSIBLE_TO_PROBABLE_COUNT += 1
@@ -1605,6 +1608,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
+                time.sleep(0.3)
 # if no person detected, go to nothing
             else:
                 if (SAID_HELLO == 1 and SAID_GOODBYE == 0):
@@ -1645,7 +1649,8 @@ try:
             P_DETECT, PERSON_POSITION = \
                       person_position_x_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
-            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
+#            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
+            if (P_DETECT):
                 PERSON_STATE = STATE_PROBABLE
                 if (PREV_PERSON_STATE == STATE_PROBABLE):
                     LIKELY_TO_PROBABLE_COUNT += 1
@@ -1667,6 +1672,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
+                time.sleep(0.3)
             else:
                 PERSON_STATE = STATE_POSSIBLE
                     
@@ -1697,7 +1703,8 @@ try:
             P_DETECT, PERSON_POSITION = \
                       person_position_x_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
-            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
+#            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
+            if (P_DETECT):
                 detected_time_stamp = get_uptime()
                 debug_print('Person detected at '+str(detected_time_stamp))
                 PERSON_STATE = STATE_DETECTED
@@ -1728,6 +1735,7 @@ try:
                         say_hello()
                         SAID_HELLO = 1
                         SAID_GOODBYE = 0
+                time.sleep(0.3)
             else:
                 PERSON_STATE = STATE_POSSIBLE
 
