@@ -141,7 +141,7 @@ HMA_I0 = 0
 HMA_I1 = 0
 HMA_I2 = 0
 HMA_I3 = 0
-HIT_COUNT_LIMIT = 4             # if less than this, probably not a person
+HIT_COUNT_LIMIT = 5             # if less than this, probably not a person
 
 # Command line argument constants
 DEBUG = 0           # set this to 1 to see debug messages on monitor
@@ -1306,6 +1306,8 @@ try:
             HIT_ARRAY[3] == 2
         elif (HIT_ARRAY[0] == 0 and HIT_ARRAY[1] >= 1 and HIT_ARRAY[2] ==2 and HIT_ARRAY[3] == 1):
             HIT_ARRAY[3] == 2
+        elif (HIT_ARRAY[0] == 0 and HIT_ARRAY[1] >= 2 and HIT_ARRAY[2] ==0 and HIT_ARRAY[3] == 1):
+            HIT_ARRAY[2] == 1
                         
         GPIO.output(LED0_RED, LED_OFF)
         GPIO.output(LED0_YEL, LED_OFF)
@@ -1505,7 +1507,7 @@ try:
                 person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
 
 # if there is a person, go to the next state
-            if (P_DETECT and HIT_COUNT > 3):    # must have some hits > 1 to get next state
+            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):    # must have some hits > 1 to get next state
                 PERSON_STATE = STATE_POSSIBLE
                 if (PREV_PERSON_STATE == STATE_POSSIBLE):
                     NOTHING_TO_POSSIBLE_COUNT += 1
