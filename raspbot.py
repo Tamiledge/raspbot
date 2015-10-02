@@ -1516,8 +1516,6 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         NOTHING_TO_POSSIBLE_COUNT = 0
                         debug_print('Jumping back and forth between Nothing and Possible. Resetting Servo')
-                        P_DETECT, PERSON_POSITION = \
-                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
                             if SERVO_POSITION < MAX_SERVO_POSITION+50 or SERVO_POSITION >= MIN_SERVO_POSITION-50:
                                 PERSON_POSITION = CTR_SERVO_POSITION
@@ -1534,7 +1532,7 @@ try:
                                 SERVO_DIRECTION = SERVO_CUR_DIR_CCW
 
                         SERVO_POSITION = \
-                            set_servo_to_position(PERSON_POSITION)
+                            set_servo_to_position(CTR_SERVO_POSITION)
 
                         if SERVO_POSITION == CTR_SERVO_POSITION:
 # reverse the direction of roaming too
@@ -1594,10 +1592,8 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         POSSIBLE_TO_PROBABLE_COUNT = 0
                         debug_print('Jumping back and forth between Possible and Probable. Resetting Servo')
-                        P_DETECT, PERSON_POSITION = \
-                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         SERVO_POSITION = \
-                            set_servo_to_position(PERSON_POSITION)
+                            set_servo_to_position(CTR_SERVO_POSITION)
 # reverse the direction of roaming too
                         if (SERVO_DIRECTION == SERVO_CUR_DIR_CCW):
                             SERVO_DIRECTION = SERVO_CUR_DIR_CW
@@ -1658,10 +1654,8 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         LIKELY_TO_PROBABLE_COUNT = 0
                         debug_print('Jumping back and forth between Likely and Probable. Resetting Servo')
-                        P_DETECT, PERSON_POSITION = \
-                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         SERVO_POSITION = \
-                            set_servo_to_position(PERSON_POSITION)
+                            set_servo_to_position(CTR_SERVO_POSITION)
 # reverse the direction of roaming too
                         if (SERVO_DIRECTION == SERVO_CUR_DIR_CCW):
                             SERVO_DIRECTION = SERVO_CUR_DIR_CW
@@ -1714,10 +1708,8 @@ try:
 # reset the servo position if hits and we just came back from the next state
                         PROBABLE_TO_DETECTED_COUNT = 0
                         debug_print('Jumping back and forth between Probable and Detected. Resetting Servo')
-                        P_DETECT, PERSON_POSITION = \
-                            person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
                         SERVO_POSITION = \
-                            set_servo_to_position(PERSON_POSITION)
+                            set_servo_to_position(CTR_SERVO_POSITION)
 # reverse the direction of roaming too
                         if (SERVO_DIRECTION == SERVO_CUR_DIR_CCW):
                             SERVO_DIRECTION = SERVO_CUR_DIR_CW
