@@ -1349,10 +1349,10 @@ try:
         elif (HIT_ARRAY[3] > 4):
             GPIO.output(LED3_RED, LED_ON)
                              
-        debug_print('\r\n-----------------------\r\nhit array: '+\
+        debug_print('\r\n-----------------------\r\nhit_array: '+\
                     str(HIT_ARRAY[0])+str(HIT_ARRAY[1])+ \
                     str(HIT_ARRAY[2])+str(HIT_ARRAY[3])+ \
-                    '\r\nhit count: '+str(HIT_COUNT)+ \
+                    '\r\nhit_count: '+str(HIT_COUNT)+ \
                     '\r\n-----------------------')
 
         if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
@@ -1581,7 +1581,7 @@ try:
             NO_PERSON_COUNT += 1
 
             P_DETECT, PERSON_POSITION = \
-                person_position_2_hit(HIT_ARRAY, SERVO_POSITION)
+                person_position_x_hit(HIT_ARRAY, SERVO_POSITION)
             # stay in possible state
 #            if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
             if (P_DETECT):
@@ -1815,7 +1815,7 @@ try:
                     time.sleep(0.3)
 
             P_DETECT, PERSON_POSITION = \
-                      person_position_2_hit(HIT_ARRAY, \
+                      person_position_x_hit(HIT_ARRAY, \
                                             SERVO_POSITION)
             if (P_DETECT and HIT_COUNT > HIT_COUNT_LIMIT):
                 SERVO_POSITION = move_head(PERSON_POSITION, \
