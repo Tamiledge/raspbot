@@ -199,7 +199,8 @@ LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
 
 # audio constants
 HELLO_FILE_NAME = \
-    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
+    "/home/pi/projects_ggg/raspbot/snd/Robot2.mp3"
+#    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
 AFTER_HELLO_FILE_NAME = \
     "/home/pi/projects_ggg/raspbot/snd/girl-sorry.mp3"
 GOODBYE_FILE_NAME = \
@@ -776,8 +777,8 @@ def play_sound(volume, message):
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
 # something is causing the garbling after 24 hours of operation
-#    while pygame.mixer.music.get_busy() == True:
-#        continue
+    while pygame.mixer.music.get_busy() == True:
+        continue
 
 def crash_and_burn(msg, py_game, servo_in, log_file_handle):
     """
