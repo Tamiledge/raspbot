@@ -198,9 +198,9 @@ LOG_MAX = 1200          # number of times through the main while loop
 LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
 
 # audio constants
+#    "/home/pi/projects_ggg/raspbot/snd/Robot2.mp3"
 HELLO_FILE_NAME = \
-    "/home/pi/projects_ggg/raspbot/snd/Robot2.mp3"
-#    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
+    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
 AFTER_HELLO_FILE_NAME = \
     "/home/pi/projects_ggg/raspbot/snd/girl-sorry.mp3"
 GOODBYE_FILE_NAME = \
