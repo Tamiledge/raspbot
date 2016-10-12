@@ -1473,7 +1473,7 @@ try:
 #     Event 1: One or more sensors cross the person threshold
 #
         elif (PERSON_STATE == STATE_NOTHING):
-            SENSITIVITY = 3
+            SENSITIVITY = 4
             debug_print('STATE: NOTHING: No Person cnt: '+str(NO_PERSON_COUNT) \
                        +' ROAM COUNT = '+str(ROAM_COUNT) \
                        +' Hit Cnt = '+str(HIT_COUNT) \
@@ -1567,7 +1567,7 @@ try:
 #     Event 2: More than one hit - state 2
 #
         elif (PERSON_STATE == STATE_POSSIBLE):
-            SENSITIVITY = 2
+            SENSITIVITY = 3
             debug_print('STATE POSSIBLE cnt: '+str(STATE_POSSIBLE_COUNT) \
                        +' ROAM COUNT = '+str(ROAM_COUNT) \
                        +' Hit Cnt = '+str(HIT_COUNT) \
