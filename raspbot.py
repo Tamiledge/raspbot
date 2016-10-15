@@ -96,8 +96,9 @@ MOVE_DIST_FAR = 180
 SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
 ROAM_MAX = 600         # Max number of times to roam between person
-                        # detections (roughly 0.5 seconds between roams
+                        # detections (there is roughly 0.5 seconds between roam ticks
 ROAM_COUNT = 0 # keep track of head roams so that we can turn it off
+SLEEP_MAX = ROAM_MAX * 100 # when sleeping, wait this long before roaming again or until a person appears
 # initialize the servo to face directly forward
 SERVO_POSITION = CTR_SERVO_POSITION
 # set initial direction
@@ -585,7 +586,7 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     GPIO.output(lit, LED_OFF)
 #    debug_print('Roam count = '+str(roam_cnt))
 
-    if roam_cnt <= ROAM_MAX:
+    if ROAM and roam_cnt <= ROAM_MAX:
         
         # determine next servo direction
         if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
@@ -664,8 +665,9 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 #        debug_print('last LED = '+str(last_led)+' lit LED = '+str(lit))
 
     else:
+# go into sleep mode
 # reinitialize sensitivity threshold
-        announce("Roam count hit max: "+str(ROAM_MAX))
+        announce("Roam off")
         if MONITOR and roam_cnt == ROAM_MAX+1:
             SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
             debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
@@ -694,7 +696,7 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
         GPIO.output(LED1_GRN, LED_OFF)
         GPIO.output(LED2_GRN, LED_OFF)
         GPIO.output(LED3_GRN, LED_OFF)
-        if (roam_cnt%2 == 0):
+        if (roam_cnt%5 == 0):
             GPIO.output(LED0_YEL, LED_ON)
             GPIO.output(LED1_YEL, LED_ON)
             GPIO.output(LED2_YEL, LED_ON)
@@ -710,7 +712,8 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
             person_position_1_hit(HIT_ARRAY, SERVO_POSITION)
 
 # Start roaming again if no action or a person hit
-        if (roam_cnt >= ROAM_MAX*20 or P_DETECT):
+#        if (roam_cnt >= SLEEP_MAX or P_DETECT):
+        if (P_DETECT):
             roam_cnt = 0
             GPIO.output(LED0_GRN, LED_OFF)
             GPIO.output(LED1_GRN, LED_OFF)
