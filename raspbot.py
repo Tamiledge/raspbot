@@ -201,11 +201,11 @@ LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
 # audio constants
 #    "/home/pi/projects_ggg/raspbot/snd/Robot2.mp3"
 HELLO_FILE_NAME = \
-    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.mp3"
+    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.ogg"
 AFTER_HELLO_FILE_NAME = \
     "/home/pi/projects_ggg/raspbot/snd/girl-sorry.mp3"
 GOODBYE_FILE_NAME = \
-    "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.mp3"
+    "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.ogg"
 BADGE_FILE_NAME = \
     "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
 BURN_FILE_NAME = \
@@ -780,9 +780,11 @@ def play_sound(volume, message):
     pygame.mixer.music.load(message)
     pygame.mixer.music.play()
 # something is causing the garbling after 24 hours of operation
-    while pygame.mixer.music.get_busy() == True:
-        continue
-
+##    while pygame.mixer.music.get_busy() == True:
+##        continue
+    while pygame.mixer.music.get_busy(): 
+        pygame.time.Clock().tick(10)
+    
 def crash_and_burn(msg, py_game, servo_in, log_file_handle):
     """
     Something bad happend; quit the program
@@ -1137,11 +1139,6 @@ try:
                        +str(HUMAN_TEMP_MIN))
 # Display the Omron internal temperature
             debug_print('Servo Type: '+str(SERVO_TYPE))
-
-# reinitialize the mixer; for some reason the audio drops out
-# after extended periods of operating time. See if this fixes
-#            pygame.mixer.init()
-# it didn't fix the garbling
 
             NO_PERSON_COUNT = 0
             P_DETECT_COUNT  = 0
