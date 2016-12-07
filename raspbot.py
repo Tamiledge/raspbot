@@ -184,7 +184,7 @@ MAX_TEMP = 200          # maximum expected temperature in Fahrenheit
 TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST # holds the recently measured temperature
 HUMAN_TEMP_MIN = 82     # Human temp min empirically measured at 3 feet away
 HUMAN_TEMP_MAX = 98     # Human temp max if they don't have the flu
-SENSITIVITY = 3          # degrees > than room temp to detect person
+SENSITIVITY = 4          # degrees > than room temp to detect person
 SAMPLED_AVERAGE_TEMP = HUMAN_TEMP_MIN - SENSITIVITY
 
 BURN_HAZARD_TEMP = 101  # temperature at which a warning is given
@@ -1429,7 +1429,7 @@ try:
             SCREEN_DISPLAY.fill(fahrenheit_to_rgb(MAX_TEMP, \
                                 MIN_TEMP, ROOM_TEMP), \
                                 ROOM_TEMP_AREA)
-            SCREEN_TEXT = FONT.render("Room: %.1f"%ROOM_TEMP+" Person >= %.1f"%HUMAN_TEMP_MIN, 1, \
+            SCREEN_TEXT = FONT.render("Rm: %.1f"%ROOM_TEMP+" Avg = %.1f"%SAMPLED_AVERAGE_TEMP+" Prsn >= %.1f"%HUMAN_TEMP_MIN, 1, \
                                 name_to_rgb('navy'))
             SCREEN_TEXT_POS = SCREEN_TEXT.get_rect()
             SCREEN_TEXT_POS.center = ROOM_TEMP_MSG_XY
@@ -1519,7 +1519,7 @@ try:
 #     Event 1: One or more sensors cross the person threshold
 #
         elif (PERSON_STATE == STATE_NOTHING):
-            SENSITIVITY = 4
+#            SENSITIVITY = 4
             debug_print('STATE: NOTHING: No Person cnt: '+str(NO_PERSON_COUNT) \
                        +' ROAM COUNT = '+str(ROAM_COUNT) \
                        +' Hit Cnt = '+str(HIT_COUNT) \
@@ -1613,7 +1613,7 @@ try:
 #     Event 2: More than one hit - state 2
 #
         elif (PERSON_STATE == STATE_POSSIBLE):
-            SENSITIVITY = 3
+#            SENSITIVITY = 3
             debug_print('STATE POSSIBLE cnt: '+str(STATE_POSSIBLE_COUNT) \
                        +' ROAM COUNT = '+str(ROAM_COUNT) \
                        +' Hit Cnt = '+str(HIT_COUNT) \
@@ -1675,7 +1675,7 @@ try:
 #     Event 2: more than one sensor still has a hit, move head, State 3
 #
         elif (PERSON_STATE == STATE_LIKELY):
-            SENSITIVITY = 2
+#            SENSITIVITY = 2
             BURN_HAZARD_CNT = 0
             STATE_LIKELY_COUNT += 1
             debug_print('STATE: LIKELY cnt: '+str(STATE_LIKELY_COUNT) \
@@ -1728,7 +1728,7 @@ try:
 #     Event 2: more than one sensor has a hit, move head, say hello
 #
         elif (PERSON_STATE == STATE_PROBABLE):
-            SENSITIVITY = 2
+#            SENSITIVITY = 2
             BURN_HAZARD_CNT = 0
             STATE_PROBABLE_COUNT += 1
             debug_print('STATE: PROBABLE count: '+str(STATE_PROBABLE_COUNT) \
@@ -1789,7 +1789,7 @@ try:
 #     Event 2: more than one sensor, move head to position, stay
 #     
         elif (PERSON_STATE == STATE_DETECTED):
-            SENSITIVITY = 3
+#            SENSITIVITY = 3
             debug_print('STATE: DETECTED count: '+str(STATE_DETECTED_COUNT) \
                        +' ROAM COUNT = '+str(ROAM_COUNT) \
                        +' Hit Cnt = '+str(HIT_COUNT) \
