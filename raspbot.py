@@ -23,6 +23,17 @@
 # remember to run this as root "sudo ./raspbot -debug -roam" so that
 # DMA can be used for the servo and the GPIO pins can be used
 # !!!!!!!!!!!!!!!!!
+#
+# Also, I had to add this to /etc/modules
+## snd-bcm2835
+##
+### Enable the I2C ports - GGG
+##i2c-bcm2708
+##i2c-dev
+##
+### Enable the /dev/dsp sound port
+##snd_pcm_oss
+##snd_mixer_oss
 
 # Jan 2015
 """
@@ -42,6 +53,9 @@ from RPIO import PWM        # for the servo motor
 
 import numpy as np
 from numpy import convolve
+
+import ossaudiodev
+import wave
  
 # all the LED constants
 
@@ -201,11 +215,11 @@ LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
 # audio constants
 #    "/home/pi/projects_ggg/raspbot/snd/Robot2.mp3"
 HELLO_FILE_NAME = \
-    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.ogg"
+    "/home/pi/projects_ggg/raspbot/snd/20150201_zoe-hello1.wav"
 AFTER_HELLO_FILE_NAME = \
     "/home/pi/projects_ggg/raspbot/snd/girl-sorry.mp3"
 GOODBYE_FILE_NAME = \
-    "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.ogg"
+    "/home/pi/projects_ggg/raspbot/snd/20150201_chloe-goodbye1.wav"
 BADGE_FILE_NAME = \
     "/home/pi/projects_ggg/raspbot/snd/badge_file.mp3"
 BURN_FILE_NAME = \
@@ -769,15 +783,47 @@ def say_goodbye():
     play_sound(MAX_VOLUME, GOODBYE_FILE_NAME)
 
 
-def play_sound(volume, message):
+def play_sound(volume, filename):
     """
-    Play an mp3 file
+    Play an audio file
     """
+##    try:
+##      print "opening file: '" + filename + "'"
+##      sound_file = wave.open(filename,'rb')
+##
+##      print "getting parameters"
+##      (nc, sw, fr, nf, comptype, compname) = sound_file.getparams()
+##
+##      print "parameters were",  (nc, sw, fr, nf, comptype, compname)
+##      print "opening audio"
+##      sound = ossaudiodev.open('w')
+##
+##      print "setting parameters"
+##      sound.setparameters(ossaudiodev.AFMT_S16_NE, nc, fr)
+##
+##      print "readframes"
+##      data = sound_file.readframes(65536)
+##      while data:
+##        sound.write(data)
+##        data = sound_file.readframes(65536)
+##      
+##      sound.flush()
+##      sound.sync()
+##
+##    except IOError, e:
+##      print str(e)
+##
+##    finally:
+##      print "closing file"
+##      sound_file.close()
+##
+##      print "closing sound device"
+##      sound.close()
 # commented next line thinking that it might be causing the garbling
     pygame.mixer.music.set_volume(volume)         
 #    os.system('mpg123 -q '+message+' &') - this crashes the python code
 # Old code
-    pygame.mixer.music.load(message)
+    pygame.mixer.music.load(filename)
     pygame.mixer.music.play()
 # something is causing the garbling after 24 hours of operation
 ##    while pygame.mixer.music.get_busy() == True:
@@ -831,9 +877,9 @@ def hstack_push(array, element):
     return new_array    
 
 def init_pygame():
-    pygame.mixer.pre_init(44100,-16,1, 1024) # set for mono
+##    pygame.mixer.pre_init(44100,-16,1, 1024) # set for mono
     pygame.init()
-    pygame.mixer.init()
+##    pygame.mixer.init()
 
 ###############################
 #
@@ -1024,15 +1070,15 @@ try:
 # PID controller is the feedback loop controller for person following
     PID_CONTROLLER = PID(1.0, 0.1, 0.0)
 
-    if CONNECTED:
-        speakSpeechFromText("Now might be a good time to stand up and stretch", "stretch.mp3")
-        debug_print("Connected to internet")
-        LOGFILE_HANDLE.write('\r\nConnected to the Internet')
-        play_sound(MAX_VOLUME, "stretch.mp3")
-    else:
-        debug_print("Not connected to internet")
-        LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
-        
+##    if CONNECTED:
+##        speakSpeechFromText("Now might be a good time to stand up and stretch", "stretch.mp3")
+##        debug_print("Connected to internet")
+##        LOGFILE_HANDLE.write('\r\nConnected to the Internet')
+##        play_sound(MAX_VOLUME, "stretch.mp3")
+##    else:
+##        debug_print("Not connected to internet")
+##        LOGFILE_HANDLE.write('\r\nNOT connected to the Internet')   
+##        
 # setup the IR color window
     if MONITOR:
         FONT = pygame.font.Font(None, 36)
