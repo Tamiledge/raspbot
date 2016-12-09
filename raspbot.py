@@ -179,8 +179,8 @@ MAX_VOLUME = 1.0            # maximum speaker volume
 
 # Temperature constants
 DEGREE_UNIT = 'F'           # F = Farenheit, C=Celcius
-MIN_TEMP = 0            # minimum expected temperature in Fahrenheit
-MAX_TEMP = 200          # maximum expected temperature in Fahrenheit
+MIN_TEMP = 50            # minimum expected temperature in Fahrenheit
+MAX_TEMP = 150          # maximum expected temperature in Fahrenheit
 TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST # holds the recently measured temperature
 HUMAN_TEMP_MIN = 82     # Human temp min empirically measured at 3 feet away
 HUMAN_TEMP_MAX = 98     # Human temp max if they don't have the flu
@@ -588,7 +588,7 @@ def move_head(position, servo_pos):
         debug_print('New Pos: '+str(new_servo_pos))
         
         #let the temp's settle
-#        time.sleep(MEASUREMENT_WAIT_PERIOD)
+        time.sleep(MEASUREMENT_WAIT_PERIOD)
 
         return new_servo_pos
 
