@@ -109,8 +109,9 @@ MOVE_DIST_MEDIUM = 130
 MOVE_DIST_FAR = 180       
 SERVO_ENABLED = 1   # set this to 1 if the servo motor is wired up
 SERVO_GPIO_PIN = 11 # GPIO number (GPIO 11 aka. SCLK)
-ROAM_MAX = 600         # Max number of times to roam between person
+ROAM_MAX = 600         # Max number of times to roam between person (about five minutes)
                         # detections (there is roughly 0.5 seconds between roam ticks
+REBOOT_CYCLE = 10*ROAM_MAX
 ROAM_COUNT = 0 # keep track of head roams so that we can turn it off
 SLEEP_MAX = ROAM_MAX * 100 # when sleeping, wait this long before roaming again or until a person appears
 # initialize the servo to face directly forward
@@ -179,7 +180,7 @@ MAX_VOLUME = 1.0            # maximum speaker volume
 
 # Temperature constants
 DEGREE_UNIT = 'F'           # F = Farenheit, C=Celcius
-MIN_TEMP = 50            # minimum expected temperature in Fahrenheit
+MIN_TEMP = 30            # minimum expected temperature in Fahrenheit
 MAX_TEMP = 150          # maximum expected temperature in Fahrenheit
 TEMPERATURE_ARRAY = [0.0]*OMRON_DATA_LIST # holds the recently measured temperature
 HUMAN_TEMP_MIN = 82     # Human temp min empirically measured at 3 feet away
@@ -598,63 +599,64 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     """
     roam_cnt += 1
     GPIO.output(lit, LED_OFF)
-#    debug_print('Roam count = '+str(roam_cnt))
+    debug_print('Roam count = '+str(roam_cnt))
 
-    if ROAM and roam_cnt <= ROAM_MAX:
+    if roam_cnt <= ROAM_MAX:
         
-        # determine next servo direction
-        if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-            if (servo_pos <= SERVO_LIMIT_CCW and \
-                servo_dir == SERVO_CUR_DIR_CCW):
-                announce('CCW -> CW')
-                servo_dir = SERVO_CUR_DIR_CW
-            elif (servo_pos >= SERVO_LIMIT_CW and \
-                servo_dir == SERVO_CUR_DIR_CW):
-                announce('CW -> CCW')
-                servo_dir = SERVO_CUR_DIR_CCW
-        else:
-            if (servo_pos >= SERVO_LIMIT_CCW and \
-                servo_dir == SERVO_CUR_DIR_CCW):
-                announce('CCW -> CW')
-                servo_dir = SERVO_CUR_DIR_CW
-            elif (servo_pos <= SERVO_LIMIT_CW and \
-                servo_dir == SERVO_CUR_DIR_CW):
-                announce('CW -> CCW')
-                servo_dir = SERVO_CUR_DIR_CCW
-
-        # determine next servo position    
-        if RAND:
+        if RAND or ROAM:
+            # determine next servo direction
             if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                servo_pos = \
-                   random.randint(MAX_SERVO_POSITION, \
-                                   MIN_SERVO_POSITION)
+                if (servo_pos <= SERVO_LIMIT_CCW and \
+                    servo_dir == SERVO_CUR_DIR_CCW):
+                    announce('CCW -> CW')
+                    servo_dir = SERVO_CUR_DIR_CW
+                elif (servo_pos >= SERVO_LIMIT_CW and \
+                    servo_dir == SERVO_CUR_DIR_CW):
+                    announce('CW -> CCW')
+                    servo_dir = SERVO_CUR_DIR_CCW
             else:
-                servo_pos = \
-                    random.randint(MIN_SERVO_POSITION, \
-                                   MAX_SERVO_POSITION)
-                    
-            debug_print('SERVO_RAND Pos: ' \
-                       +str(servo_pos)+' Dir: ' \
-                       +str(servo_dir))
+                if (servo_pos >= SERVO_LIMIT_CCW and \
+                    servo_dir == SERVO_CUR_DIR_CCW):
+                    announce('CCW -> CW')
+                    servo_dir = SERVO_CUR_DIR_CW
+                elif (servo_pos <= SERVO_LIMIT_CW and \
+                    servo_dir == SERVO_CUR_DIR_CW):
+                    announce('CW -> CCW')
+                    servo_dir = SERVO_CUR_DIR_CCW
 
-        elif ROAM:
-            if servo_dir == SERVO_CUR_DIR_CCW:
-                debug_print('SERVO ROAM Pos: '+ \
-                    str(servo_pos)+' Direction: CCW')
+            # determine next servo position    
+            if RAND:
                 if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                    servo_pos -= ROAMING_GRANULARTY
+                    servo_pos = \
+                       random.randint(MAX_SERVO_POSITION, \
+                                       MIN_SERVO_POSITION)
                 else:
-                    servo_pos += ROAMING_GRANULARTY
-            if servo_dir == SERVO_CUR_DIR_CW:
-                debug_print('SERVO ROAM Pos: '+ \
-                    str(servo_pos)+' Direction: CW')
-                if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
-                    servo_pos += ROAMING_GRANULARTY
-                else:
-                    servo_pos -= ROAMING_GRANULARTY
+                    servo_pos = \
+                        random.randint(MIN_SERVO_POSITION, \
+                                       MAX_SERVO_POSITION)
+                        
+                debug_print('SERVO_RAND Pos: ' \
+                           +str(servo_pos)+' Dir: ' \
+                           +str(servo_dir))
 
-        servo_pos = \
-            set_servo_to_position(servo_pos)
+            elif ROAM:
+                if servo_dir == SERVO_CUR_DIR_CCW:
+                    debug_print('SERVO ROAM Pos: '+ \
+                        str(servo_pos)+' Direction: CCW')
+                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                        servo_pos -= ROAMING_GRANULARTY
+                    else:
+                        servo_pos += ROAMING_GRANULARTY
+                if servo_dir == SERVO_CUR_DIR_CW:
+                    debug_print('SERVO ROAM Pos: '+ \
+                        str(servo_pos)+' Direction: CW')
+                    if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
+                        servo_pos += ROAMING_GRANULARTY
+                    else:
+                        servo_pos -= ROAMING_GRANULARTY
+
+            servo_pos = \
+                set_servo_to_position(servo_pos)
 
         if (last_led == 0):
             lit = LED0_YEL
@@ -683,10 +685,11 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 # reinitialize sensitivity threshold
         announce("Roam off")
         if MONITOR and roam_cnt == ROAM_MAX+1:
+            countdown = REBOOT_CYCLE - roam_cnt
             SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
             debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
             SCREEN_DISPLAY.fill(name_to_rgb('black'), MESSAGE_AREA)
-            txt = FONT.render("sleeping...", 1, name_to_rgb('gray'))
+            txt = FONT.render("sleeping - reboot in "+str(countdown)+" ticks", 1, name_to_rgb('gray'))
             txtpos = SCREEN_TEXT.get_rect()
             txtpos.center = MESSAGE_AREA_XY
             SCREEN_DISPLAY.blit(txt, txtpos)
@@ -733,6 +736,12 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
             GPIO.output(LED1_GRN, LED_OFF)
             GPIO.output(LED2_GRN, LED_OFF)
             GPIO.output(LED3_GRN, LED_OFF)
+
+        if roam_cnt >= REBOOT_CYCLE:
+            debug_print('RRRRRRRRRRRRRRRRRRRRRR Roam count = '+str(roam_cnt)+' REBOOTING NOW')
+            os.system("sudo reboot") # to help fix sound problem
+            CRASH_MSG = '\r\nPlanned reboot; quitting'
+            crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
 
     return roam_cnt, servo_pos, servo_dir, last_led, lit
 
@@ -1293,6 +1302,12 @@ try:
                    +str(HUMAN_TEMP_MIN))
 
         for element in range(0, OMRON_DATA_LIST):
+            if (TEMPERATURE_ARRAY[element] > MAX_TEMP):
+                TEMPERATURE_ARRAY[element] = MAX_TEMP
+            elif (TEMPERATURE_ARRAY[element] < MIN_TEMP):
+                TEMPERATURE_ARRAY[element] = MIN_TEMP
+
+        for element in range(0, OMRON_DATA_LIST):
             if (TEMPERATURE_ARRAY[element] > \
                 BURN_HAZARD_TEMP):
                 HIT_ARRAY_TEMP[element] = BURN_HAZARD_HIT
@@ -1402,6 +1417,7 @@ try:
                     '\r\nhit_count: '+str(HIT_COUNT)+ \
                     '\r\n-----------------------')
 
+        debug_print("max temp = "+str(max(TEMPERATURE_ARRAY)))
         if max(TEMPERATURE_ARRAY) > BURN_HAZARD_TEMP:
             PERSON_STATE = STATE_BURN
 

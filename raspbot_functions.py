@@ -1,6 +1,8 @@
 
 from datetime import datetime
 import urllib, pycurl, os           # needed for text to speech
+import subprocess
+import os
 
 # function for celcius to farenheiht conversion
 def c2f (centigrade):
@@ -25,14 +27,22 @@ def fahrenheit_to_rgb(maxVal, minVal, actual):
     intR = 0
     intG = 0
     intB = 0
+    Val1 = (maxVal - midVal)
+    Val2 = (midVal - minVal)
 
+    if Val1 <= 0:
+        Val1 = 1
+
+    if Val2 <= 0:
+        Val2 = 1
+        
     if actual >= minVal or actual <= maxVal:
         if (actual >= midVal):
             intR = 255
-            intG = round(255 * ((maxVal - actual) / (maxVal - midVal)))
+            intG = round(255 * ((maxVal - actual) / Val1))
         else:
             intG = 255
-            intR = round(255 * ((actual - minVal) / (midVal - minVal)))
+            intR = round(255 * ((actual - minVal) / Val2))
 
         if intR < 0:
             intR = 0
@@ -86,3 +96,23 @@ def getCPUtemperature():
 #    temp1 = temp_str[5:9]
 #    temp2 = eval(temp1)
     return temp_degF
+
+def get_ram():
+    """
+    Returns a tuple (total ram, available ram) in megabytes
+    """
+#    try:
+#    s = subprocess.check_output(["free","-m"])
+#        print s
+    fo = open("/proc/meminfo")
+    temp_str = fo.read()
+    fo.close()
+
+#    print temp_str
+
+    lines = temp_str.split('\n')
+    return ((int(lines[0].split()[1])/1000), (int(lines[1].split()[1])/1000))
+#    except:
+#        return 0
+    
+    
