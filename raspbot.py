@@ -603,6 +603,15 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 
     if roam_cnt <= ROAM_MAX:
         
+        if MONITOR:
+            SCREEN_DISPLAY.fill(name_to_rgb('blue'), MESSAGE_AREA)
+            txt = FONT.render("waiting - roam count = "+str(roam_cnt)+" ticks", 1, name_to_rgb('white'))
+            txtpos = SCREEN_TEXT.get_rect()
+            txtpos.center = MESSAGE_AREA_XY
+            SCREEN_DISPLAY.blit(txt, txtpos)
+    # update the screen
+            pygame.display.update()
+
         if RAND or ROAM:
             # determine next servo direction
             if SERVO_TYPE == LOW_TO_HIGH_IS_CLOCKWISE:
@@ -1182,22 +1191,28 @@ try:
             debug_print('\r\nClosing log file at '+str(datetime.now()))
             LOGFILE_HANDLE.close       # for forensic analysis
 
-            LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
-            debug_print('\r\nLog file re-opened at ' \
-                        +str(datetime.now()))
-            debug_print(LOGFILE_OPEN_STRING)
-            debug_print(LOGFILE_ARGS_STRING)
-            debug_print(LOGFILE_TEMP_STRING)
-            debug_print('room temp: '+str(ROOM_TEMP))
-            debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
-            debug_print('human temp threshold = ' \
-                       +str(HUMAN_TEMP_MIN))
-# Display the Omron internal temperature
-            debug_print('Servo Type: '+str(SERVO_TYPE))
+            debug_print('RRRRRRRRRRRRRRRRRRRRRR Roam count = '+str(ROAM_COUNT)+' REBOOTING NOW')
+            os.system("sudo reboot") # to help fix sound problem
+            CRASH_MSG = '\r\nPlanned reboot; quitting'
+            crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
 
-            NO_PERSON_COUNT = 0
-            P_DETECT_COUNT  = 0
-            ROAM_COUNT = 0
+
+##            LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
+##            debug_print('\r\nLog file re-opened at ' \
+##                        +str(datetime.now()))
+##            debug_print(LOGFILE_OPEN_STRING)
+##            debug_print(LOGFILE_ARGS_STRING)
+##            debug_print(LOGFILE_TEMP_STRING)
+##            debug_print('room temp: '+str(ROOM_TEMP))
+##            debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
+##            debug_print('human temp threshold = ' \
+##                       +str(HUMAN_TEMP_MIN))
+### Display the Omron internal temperature
+##            debug_print('Servo Type: '+str(SERVO_TYPE))
+##
+##            NO_PERSON_COUNT = 0
+##            P_DETECT_COUNT  = 0
+##            ROAM_COUNT = 0
 
         if (LED_STATE == False):
             LED_STATE = True
