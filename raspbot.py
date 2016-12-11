@@ -604,8 +604,9 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     if roam_cnt <= ROAM_MAX:
         
         if MONITOR:
+            sleep_timer = ROAM_MAX - roam_cnt
             SCREEN_DISPLAY.fill(name_to_rgb('blue'), MESSAGE_AREA)
-            txt = FONT.render("waiting - roam count = "+str(roam_cnt)+" ticks", 1, name_to_rgb('white'))
+            txt = FONT.render("waiting "+str(sleep_timer), 1, name_to_rgb('white'))
             txtpos = SCREEN_TEXT.get_rect()
             txtpos.center = MESSAGE_AREA_XY
             SCREEN_DISPLAY.blit(txt, txtpos)
