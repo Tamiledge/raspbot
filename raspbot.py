@@ -593,7 +593,7 @@ def move_head(position, servo_pos):
         debug_print('New Pos: '+str(new_servo_pos))
         
         #let the temp's settle
-#        time.sleep(MEASUREMENT_WAIT_PERIOD)
+        time.sleep(MEASUREMENT_WAIT_PERIOD)
 
         return new_servo_pos
 
@@ -1636,7 +1636,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
-#                time.sleep(STATE_WAIT_PERIOD)
+                time.sleep(STATE_WAIT_PERIOD)
             else:
 # if no person detected, stay in this state
                 PERSON_STATE = STATE_NOTHING
@@ -1694,7 +1694,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
-#                time.sleep(STATE_WAIT_PERIOD)
+                time.sleep(STATE_WAIT_PERIOD)
 # if no person detected, go to nothing
             else:
                 if (SAID_HELLO == 1 and SAID_GOODBYE == 0):
@@ -1756,7 +1756,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
-#                time.sleep(STATE_WAIT_PERIOD)
+                time.sleep(STATE_WAIT_PERIOD)
             else:
                 PERSON_STATE = STATE_POSSIBLE
                     
