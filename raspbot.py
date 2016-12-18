@@ -171,7 +171,7 @@ RASPI_I2C_CHANNEL = 1       # the /dev/i2c device
 OMRON_1 = 0x0a              # 7 bit I2C address of Omron Sensor D6T-44L
 OMRON_BUFFER_LENGTH = 35    # Omron data buffer size
 OMRON_DATA_LIST = 16        # Omron data array - sixteen 16 bit words
-MEASUREMENT_WAIT_PERIOD = 0.25   # time between Omron measurements
+MEASUREMENT_WAIT_PERIOD = 0.2   # time between Omron measurements
 OMRON_ERROR_COUNT = 0
 OMRON_READ_COUNT = 0
 
@@ -212,6 +212,7 @@ P_DETECT_COUNT = 0
 # log file constants
 LOG_MAX = 1200          # number of times through the main while loop
 LOGFILE_NAME = "/home/pi/projects_ggg/raspbot/raspbot.log"
+KEEP_LOG_FILE = False   # command line control, default to no log file
 
 # audio constants
 #    "/home/pi/projects_ggg/raspbot/snd/Robot2.mp3"
@@ -268,6 +269,7 @@ PTPC_LIMIT = 3
 LIKELY_TO_PROBABLE_COUNT = 0
 PTDC_LIMIT = 3
 PROBABLE_TO_DETECTED_COUNT = 0
+STATE_WAIT_PERIOD = 0.05   # time between state transitions
 
 # Miscellaneous constants
 CONNECTED = 0           # true if connected to the internet
@@ -298,7 +300,8 @@ def debug_print(message):
     now_string = str(datetime.now())
     if DEBUG and MONITOR:
         print now_string+': '+message
-    LOGFILE_HANDLE.write('\r\n'+now_string+': '+message)
+    if KEEP_LOG_FILE:
+        LOGFILE_HANDLE.write('\r\n'+now_string+': '+message)
     
 def announce(message):
     """
@@ -308,8 +311,9 @@ def announce(message):
     if DEBUG and MONITOR:
         print now_string+': '
         print '\r\n****** '+message+' ******\r\n'
-    LOGFILE_HANDLE.write('\r\n'+now_string+': ')
-    LOGFILE_HANDLE.write('\r\n****** '+message+' ******\r\n')
+    if KEEP_LOG_FILE:
+        LOGFILE_HANDLE.write('\r\n'+now_string+': ')
+        LOGFILE_HANDLE.write('\r\n****** '+message+' ******\r\n')
     
 def print_temps(temp_list):
     """
@@ -589,7 +593,7 @@ def move_head(position, servo_pos):
         debug_print('New Pos: '+str(new_servo_pos))
         
         #let the temp's settle
-        time.sleep(MEASUREMENT_WAIT_PERIOD)
+#        time.sleep(MEASUREMENT_WAIT_PERIOD)
 
         return new_servo_pos
 
@@ -694,7 +698,7 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
 # go into sleep mode
 # reinitialize sensitivity threshold
         announce("Roam off")
-        if MONITOR and roam_cnt == ROAM_MAX+1:
+        if MONITOR:
             countdown = REBOOT_CYCLE - roam_cnt
             SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
             debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
@@ -706,23 +710,31 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
     # update the screen
             pygame.display.update()
 
-# center the servo when roam max is hit
-        servo_pos = \
-            set_servo_to_position(CTR_SERVO_POSITION)
+        if roam_cnt >= REBOOT_CYCLE:
+            debug_print('RRRRRRRRRRRRRRRRRRRRRR Roam count = '+str(roam_cnt)+' REBOOTING NOW')
+            os.system("sudo reboot") # to help fix sound problem
+            CRASH_MSG = '\r\nPlanned reboot; quitting'
+            crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE)
 
-        SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
-##        time.sleep(0.3)
-##        if SERVO_ENABLED:
-##            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
+        if roam_cnt == ROAM_MAX+1:
+    # center the servo when roam max is hit
+            servo_pos = \
+                set_servo_to_position(CTR_SERVO_POSITION)
 
-        GPIO.output(LED0_RED, LED_OFF)
-        GPIO.output(LED1_RED, LED_OFF)
-        GPIO.output(LED2_RED, LED_OFF)
-        GPIO.output(LED3_RED, LED_OFF)
-        GPIO.output(LED0_GRN, LED_OFF)
-        GPIO.output(LED1_GRN, LED_OFF)
-        GPIO.output(LED2_GRN, LED_OFF)
-        GPIO.output(LED3_GRN, LED_OFF)
+            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
+    ##        time.sleep(0.3)
+    ##        if SERVO_ENABLED:
+    ##            SERVO_HANDLE.stop_servo(SERVO_GPIO_PIN)
+
+            GPIO.output(LED0_RED, LED_OFF)
+            GPIO.output(LED1_RED, LED_OFF)
+            GPIO.output(LED2_RED, LED_OFF)
+            GPIO.output(LED3_RED, LED_OFF)
+            GPIO.output(LED0_GRN, LED_OFF)
+            GPIO.output(LED1_GRN, LED_OFF)
+            GPIO.output(LED2_GRN, LED_OFF)
+            GPIO.output(LED3_GRN, LED_OFF)
+
         if (roam_cnt%5 == 0):
             GPIO.output(LED0_YEL, LED_ON)
             GPIO.output(LED1_YEL, LED_ON)
@@ -746,12 +758,6 @@ def servo_roam(roam_cnt, servo_pos, servo_dir, last_led, lit):
             GPIO.output(LED1_GRN, LED_OFF)
             GPIO.output(LED2_GRN, LED_OFF)
             GPIO.output(LED3_GRN, LED_OFF)
-
-        if roam_cnt >= REBOOT_CYCLE:
-            debug_print('RRRRRRRRRRRRRRRRRRRRRR Roam count = '+str(roam_cnt)+' REBOOTING NOW')
-            os.system("sudo reboot") # to help fix sound problem
-            CRASH_MSG = '\r\nPlanned reboot; quitting'
-            crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
 
     return roam_cnt, servo_pos, servo_dir, last_led, lit
 
@@ -850,7 +856,7 @@ def play_sound(volume, filename):
     while pygame.mixer.music.get_busy(): 
         pygame.time.Clock().tick(10)
     
-def crash_and_burn(msg, py_game, servo_in, log_file_handle):
+def crash_and_burn(msg, py_game, servo_in):
     """
     Something bad happend; quit the program
     """
@@ -872,14 +878,15 @@ def crash_and_burn(msg, py_game, servo_in, log_file_handle):
     GPIO.output(LED3_RED, LED_ON)
     GPIO.output(LED3_YEL, LED_OFF)
     GPIO.output(LED3_GRN, LED_OFF)
-    cleanup_and_exit(msg, log_file_handle)
+    cleanup_and_exit(msg)
 
-def cleanup_and_exit(msg, log_file_handle):
+def cleanup_and_exit(msg):
     pygame.quit()
     PWM.cleanup()
     GPIO.cleanup()
-    log_file_handle.write(msg+' @ '+str(datetime.now()))
-    log_file_handle.close
+    if KEEP_LOG_FILE:
+        LOGFILE_HANDLE.write(msg+' @ '+str(datetime.now()))
+        LOGFILE_HANDLE.close
     sys.exit()
 
 def hstack_push(array, element):
@@ -924,6 +931,9 @@ if "-roam" in sys.argv:
 
 if "-rand" in sys.argv:
     RAND = 1          # set this to 1 to randomize looking for a person
+
+if "-log" in sys.argv:
+    KEEP_LOG_FILE = True          # set this to True to keep a log file
 
 if "-help" in sys.argv:
     print 'IMPORTANT: run as superuser (sudo) to allow DMA access'
@@ -1025,25 +1035,27 @@ try:
 
 # Open log file
 
-    LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
-    LOGFILE_OPEN_STRING = '\r\nStartup log file opened at ' \
-                          +str(datetime.now())
-    LOGFILE_ARGS_STRING = '\r\nDEBUG: '+str(DEBUG)+' SERVO: ' \
-                          +str(SERVO_ENABLED)+' MONITOR: ' \
-                          +str(MONITOR)+ \
-                          ' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
+    if KEEP_LOG_FILE:
+        LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
+        LOGFILE_OPEN_STRING = '\r\nStartup log file opened at ' \
+                              +str(datetime.now())
+        LOGFILE_ARGS_STRING = '\r\nDEBUG: '+str(DEBUG)+' SERVO: ' \
+                              +str(SERVO_ENABLED)+' MONITOR: ' \
+                              +str(MONITOR)+ \
+                              ' ROAM: '+str(ROAM)+' RAND: '+str(RAND)
 # doing a print here makes sure that the stdout gets a message
-    print('Log file name '+str(LOGFILE_NAME)+LOGFILE_OPEN_STRING)
-    LOGFILE_HANDLE.write(LOGFILE_OPEN_STRING)
-    print LOGFILE_ARGS_STRING
-    LOGFILE_HANDLE.write(LOGFILE_ARGS_STRING)
+        print('Log file name '+str(LOGFILE_NAME)+LOGFILE_OPEN_STRING)
+        LOGFILE_HANDLE.write(LOGFILE_OPEN_STRING)
+        print LOGFILE_ARGS_STRING
+        LOGFILE_HANDLE.write(LOGFILE_ARGS_STRING)
 
-    CPU_TEMP = getCPUtemperature()
-    LOGFILE_TEMP_STRING = '\r\nInitial CPU Temperature = '+str(CPU_TEMP)
-    print LOGFILE_TEMP_STRING
-    LOGFILE_HANDLE.write(LOGFILE_TEMP_STRING)
+        CPU_TEMP = getCPUtemperature()
+        LOGFILE_TEMP_STRING = '\r\nInitial CPU Temperature = '+str(CPU_TEMP)
+        print LOGFILE_TEMP_STRING
+        LOGFILE_HANDLE.write(LOGFILE_TEMP_STRING)
         
-    LOGFILE_HANDLE.write('\r\nPiGPIO version = '+str(PIGPIO_VERSION))
+        LOGFILE_HANDLE.write('\r\nPiGPIO version = '+str(PIGPIO_VERSION))
+        
     debug_print('PiGPIO version = '+str(PIGPIO_VERSION))
     debug_print('Omron 1 sensor result = '+str(OMRON1_RESULT))
     debug_print('Max CW: '+str(SERVO_LIMIT_CW)+' Max CCW: '+str(SERVO_LIMIT_CCW))
@@ -1151,7 +1163,7 @@ try:
 #############################
 # Main while loop
 #############################
-    play_sound(MAX_VOLUME, HELLO_FILE_NAME)
+#    play_sound(MAX_VOLUME, HELLO_FILE_NAME)
     ram_tuple = [0,0]
     while True:                 # The main loop
         MAIN_LOOP_COUNT += 1
@@ -1182,7 +1194,7 @@ try:
 ##            debug_print('Played 125 audio')
 
 # periododically, write the log file to disk
-        if MAIN_LOOP_COUNT >= LOG_MAX:
+        if MAIN_LOOP_COUNT >= LOG_MAX and KEEP_LOG_FILE:
 
             SAMPLED_AVERAGE_TEMP = numpy.mean(TEMPERATURE_ARRAY)
 
@@ -1192,27 +1204,27 @@ try:
             debug_print('\r\nClosing log file at '+str(datetime.now()))
             LOGFILE_HANDLE.close       # for forensic analysis
 
-            debug_print('RRRRRRRRRRRRRRRRRRRRRR Roam count = '+str(ROAM_COUNT)+' REBOOTING NOW')
-            os.system("sudo reboot") # to help fix sound problem
-            CRASH_MSG = '\r\nPlanned reboot; quitting'
-            crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
+##            debug_print('RRRRRRRRRRRRRRRRRRRRRR Roam count = '+str(ROAM_COUNT)+' REBOOTING NOW')
+##            os.system("sudo reboot") # to help fix sound problem
+##            CRASH_MSG = '\r\nPlanned reboot; quitting'
+##            crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
 
 
-##            LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
-##            debug_print('\r\nLog file re-opened at ' \
-##                        +str(datetime.now()))
-##            debug_print(LOGFILE_OPEN_STRING)
-##            debug_print(LOGFILE_ARGS_STRING)
-##            debug_print(LOGFILE_TEMP_STRING)
-##            debug_print('room temp: '+str(ROOM_TEMP))
-##            debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
-##            debug_print('human temp threshold = ' \
-##                       +str(HUMAN_TEMP_MIN))
-### Display the Omron internal temperature
-##            debug_print('Servo Type: '+str(SERVO_TYPE))
-##
-##            NO_PERSON_COUNT = 0
-##            P_DETECT_COUNT  = 0
+            LOGFILE_HANDLE = open(LOGFILE_NAME, 'wb')
+            debug_print('\r\nLog file re-opened at ' \
+                        +str(datetime.now()))
+            debug_print(LOGFILE_OPEN_STRING)
+            debug_print(LOGFILE_ARGS_STRING)
+            debug_print(LOGFILE_TEMP_STRING)
+            debug_print('room temp: '+str(ROOM_TEMP))
+            debug_print('SAMPLED_AVERAGE_TEMP = '+str(SAMPLED_AVERAGE_TEMP))
+            debug_print('human temp threshold = ' \
+                       +str(HUMAN_TEMP_MIN))
+# Display the Omron internal temperature
+            debug_print('Servo Type: '+str(SERVO_TYPE))
+
+            NO_PERSON_COUNT = 0
+            P_DETECT_COUNT  = 0
 ##            ROAM_COUNT = 0
 
         if (LED_STATE == False):
@@ -1230,15 +1242,14 @@ try:
             if event.type == QUIT:
                 SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
                 CRASH_MSG = '\r\npygame event QUIT'
-                crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, \
-                               LOGFILE_HANDLE)
+                crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE)
             if event.type == KEYDOWN:
                 if event.key == K_q or event.key == K_ESCAPE:
                     SERVO_HANDLE.set_servo(SERVO_GPIO_PIN, CTR_SERVO_POSITION)
                     CRASH_MSG = \
                     '\r\npygame event: keyboard q or esc pressed'
                     crash_and_burn(CRASH_MSG, pygame, \
-                                   SERVO_HANDLE, LOGFILE_HANDLE)
+                                   SERVO_HANDLE)
 
 # read the raw temperature data
 # 
@@ -1625,7 +1636,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
-                time.sleep(0.3)
+#                time.sleep(STATE_WAIT_PERIOD)
             else:
 # if no person detected, stay in this state
                 PERSON_STATE = STATE_NOTHING
@@ -1683,7 +1694,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
-                time.sleep(0.3)
+#                time.sleep(STATE_WAIT_PERIOD)
 # if no person detected, go to nothing
             else:
                 if (SAID_HELLO == 1 and SAID_GOODBYE == 0):
@@ -1745,7 +1756,7 @@ try:
                     SERVO_POSITION = \
                         move_head(PERSON_POSITION, \
                                   SERVO_POSITION)
-                time.sleep(0.3)
+#                time.sleep(STATE_WAIT_PERIOD)
             else:
                 PERSON_STATE = STATE_POSSIBLE
                     
@@ -1806,7 +1817,7 @@ try:
                         say_hello()
                         SAID_HELLO = 1
                         SAID_GOODBYE = 0
-                time.sleep(0.3)
+                time.sleep(STATE_WAIT_PERIOD)
             else:
                 PERSON_STATE = STATE_POSSIBLE
 
@@ -1922,7 +1933,7 @@ try:
 except KeyboardInterrupt:
     print 'Keyboard Interrupt Exception!'
     CRASH_MSG = '\r\nKeyboard interrupt; quitting'
-    crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE, LOGFILE_HANDLE)
+    crash_and_burn(CRASH_MSG, pygame, SERVO_HANDLE)
 
 except IOError:
     now_string = str(datetime.now())
